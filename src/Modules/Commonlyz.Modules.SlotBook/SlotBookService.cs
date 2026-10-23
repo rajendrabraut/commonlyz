@@ -106,7 +106,8 @@ public sealed class SlotBookService(IDbContextFactory<SlotBookDb> dbFactory, Tim
     /// Books a slot. The overlap check and insert run in one transaction holding UPDLOCK/HOLDLOCK key-range locks,
     /// so two guests racing for the same slot produce exactly one booking; the loser gets a friendly error.
     /// </summary>
-    public async Task<Booking> BookAsync(string slug, DateTime startUtc, string guestName, string guestEmail, string? notes)
+    /// <param name="siteBaseUrl">Absolute base URL of this site, used for the cancel link in the confirmation email.</param>
+    public async Task<Booking> BookAsync(string slug, DateTime startUtc, string guestName, string guestEmail, string? notes, string? siteBaseUrl = null)
     {
         var type = await GetPublicTypeAsync(slug) ?? throw new AppException("This booking page isn't available.");
         guestName = Text.Required(guestName, "Name", 100);
@@ -152,8 +153,15 @@ public sealed class SlotBookService(IDbContextFactory<SlotBookDb> dbFactory, Tim
             await db.SaveChangesAsync();
         }, System.Data.IsolationLevel.Serializable);
 
-        await notifications.SendAsync(guestEmail, $"Booked: {type.Name}",
-            $"You're booked for {type.Name} at {Zones.ToLocal(slot.StartUtc, zone):yyyy-MM-dd HH:mm} ({type.TimeZoneId}).");
+        var when = Zones.ToLocal(slot.StartUtc, zone).ToString("dddd d MMMM yyyy, HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+        var body = new System.Text.StringBuilder()
+            .AppendLine($"Hi {guestName},").AppendLine()
+            .AppendLine($"You're booked for {type.Name} on {when} ({type.TimeZoneId}), {type.DurationMinutes} minutes.");
+        if (type.Location is not null)
+            body.AppendLine($"Where: {type.Location}");
+        if (siteBaseUrl is not null)
+            body.AppendLine().AppendLine($"Need to cancel? {siteBaseUrl.TrimEnd('/')}/book/cancel/{booking.CancelToken}");
+        await notifications.SendAsync(guestEmail, $"Booked: {type.Name} — {when}", body.ToString());
         return booking;
     }
 

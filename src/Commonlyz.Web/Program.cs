@@ -5,6 +5,7 @@ using Commonlyz.Core.Modules;
 using Commonlyz.Web;
 using Commonlyz.Web.Components;
 using Commonlyz.Web.Identity;
+using Commonlyz.Web.Notifications;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -69,7 +70,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 builder.Services.AddSingleton<IUserDirectory, UserDirectory>();
-builder.Services.AddSingleton<INotificationSender, LoggingNotificationSender>();
+builder.Services.AddEmailNotifications(builder.Configuration);
 builder.Services.AddHealthChecks().AddDbContextCheck<IdentityDb>();
 
 // ── Modules: each app registers its own DbContext (own schema) and services ───

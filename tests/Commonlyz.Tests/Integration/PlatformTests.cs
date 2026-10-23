@@ -9,7 +9,7 @@ namespace Commonlyz.Tests.Integration;
 [Collection(AppTestGroup.Name)]
 public class PlatformTests(AppFactory app)
 {
-    public static TheoryData<string> AdminRoutes => [.. ModuleCatalog.All.Select(m => m.Info.Route).Append("/").Append("/users")];
+    public static TheoryData<string> AdminRoutes => [.. ModuleCatalog.All.Select(m => m.Info.Route).Append("/").Append("/users").Append("/email")];
 
     [Fact]
     public void All_fifteen_modules_are_registered_with_unique_keys_and_routes()

@@ -31,6 +31,13 @@ services:
       # First admin, created only when the database has no users. Change the password after signing in.
       Admin__Email: ${ADMIN_EMAIL:-admin@commonlyz.local}
       Admin__Password: ${ADMIN_PASSWORD:-ChangeMe123!}
+      # Outgoing email. Leave SMTP_HOST empty to log emails instead of sending them.
+      Email__Host: ${SMTP_HOST:-}
+      Email__Port: ${SMTP_PORT:-587}
+      Email__Security: ${SMTP_SECURITY:-Auto}
+      Email__Username: ${SMTP_USERNAME:-}
+      Email__Password: ${SMTP_PASSWORD:-}
+      Email__FromAddress: ${SMTP_FROM:-no-reply@commonlyz.local}
     restart: unless-stopped
 
 volumes:

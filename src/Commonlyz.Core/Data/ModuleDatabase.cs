@@ -1,4 +1,5 @@
 using System.Data;
+using System.Data.Common;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -54,9 +55,38 @@ public static class ModuleDatabaseExtensions
         {
             db.ChangeTracker.Clear();
             await using var tx = await db.Database.BeginTransactionAsync(isolation, cancellationToken);
-            await work();
+            try
+            {
+                await work();
+            }
+            catch
+            {
+                await RestoreDefaultIsolationAsync(db, isolation);
+                throw;
+            }
+            await RestoreDefaultIsolationAsync(db, isolation);
             await tx.CommitAsync(cancellationToken);
         });
+
+    /// <summary>
+    /// SQL Server keeps a session's isolation level when the connection goes back to the pool, so after a
+    /// SERIALIZABLE transaction the next unrelated query on that connection would silently run SERIALIZABLE too.
+    /// Must run before commit: EF closes (returns to the pool) a connection it opened for a transaction as soon
+    /// as the transaction ends. Locks already taken stay held until commit, so this doesn't weaken the transaction.
+    /// </summary>
+    private static async Task RestoreDefaultIsolationAsync(DbContext db, IsolationLevel isolation)
+    {
+        if (isolation == IsolationLevel.ReadCommitted)
+            return;
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync("SET TRANSACTION ISOLATION LEVEL READ COMMITTED", CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is DbException or InvalidOperationException)
+        {
+            // Connection already broken: it won't be reused from the pool in that state anyway.
+        }
+    }
 
     // 2601: duplicate key in unique index; 2627: unique/primary key constraint violation.
     public static bool IsUniqueViolation(this DbUpdateException ex) =>

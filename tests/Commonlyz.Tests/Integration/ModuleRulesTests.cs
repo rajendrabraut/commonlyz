@@ -115,6 +115,21 @@ public class ModuleRulesTests(AppFactory app)
     }
 
     [Fact]
+    public async Task Serializable_transactions_dont_leak_their_isolation_level_into_the_connection_pool()
+    {
+        var stock = app.Get<StockRoomService>();
+        await stock.SaveLocationAsync(null, Unique("iso"), null);
+        var location = (await stock.ListLocationsAsync()).Last();
+        var itemId = await stock.SaveItemAsync(null, Unique("ISO"), "Nut", "pcs", null, null);
+        await stock.ReceiveAsync(itemId, location.Id, 5, null, "t");   // runs SERIALIZABLE
+
+        // The pool hands back the most recently used connection; it must be at the default level again.
+        await using var db = await app.Get<IDbContextFactory<Commonlyz.Modules.StockRoom.Data.StockRoomDb>>().CreateDbContextAsync();
+        var level = await db.Database.SqlQuery<short>($"SELECT transaction_isolation_level AS [Value] FROM sys.dm_exec_sessions WHERE session_id = @@SPID").SingleAsync();
+        level.ShouldBe((short)2, "2 = READ COMMITTED, 4 = SERIALIZABLE");
+    }
+
+    [Fact]
     public async Task StockRoom_stocktake_records_the_difference_and_transfer_moves_both_sides()
     {
         var stock = app.Get<StockRoomService>();

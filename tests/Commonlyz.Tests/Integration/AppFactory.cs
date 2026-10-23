@@ -15,6 +15,9 @@ public sealed partial class AppFactory : WebApplicationFactory<Program>, IAsyncL
 
     private readonly MsSqlContainer _sql = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest").Build();
 
+    /// <summary>Real SMTP server the app sends to. Tests deliver explicitly via <see cref="DeliverEmailsAsync"/>.</summary>
+    public FakeSmtpServer Smtp { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
@@ -22,6 +25,22 @@ public sealed partial class AppFactory : WebApplicationFactory<Program>, IAsyncL
         builder.UseSetting("Database:MigrateOnStartup", "true");
         builder.UseSetting("Admin:Email", AdminEmail);
         builder.UseSetting("Admin:Password", AdminPassword);
+        builder.UseSetting("Email:Host", "127.0.0.1");
+        builder.UseSetting("Email:Port", Smtp.Port.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        builder.UseSetting("Email:Security", "None");
+        builder.UseSetting("Email:Username", FakeSmtpServer.Username);
+        builder.UseSetting("Email:Password", FakeSmtpServer.Password);
+        builder.UseSetting("Email:FromAddress", "no-reply@commonlyz.test");
+        builder.UseSetting("Email:DispatcherEnabled", "false");
+    }
+
+    /// <summary>Runs dispatcher rounds until the outbox has nothing due.</summary>
+    public async Task DeliverEmailsAsync()
+    {
+        var dispatcher = Get<Commonlyz.Web.Notifications.EmailDispatcher>();
+        while (await dispatcher.ProcessBatchAsync(CancellationToken.None) > 0)
+        {
+        }
     }
 
     public async Task InitializeAsync()
@@ -34,6 +53,7 @@ public sealed partial class AppFactory : WebApplicationFactory<Program>, IAsyncL
     {
         await DisposeAsync();
         await _sql.DisposeAsync();
+        await Smtp.DisposeAsync();
     }
 
     public T Get<T>() where T : notnull => Services.GetRequiredService<T>();
