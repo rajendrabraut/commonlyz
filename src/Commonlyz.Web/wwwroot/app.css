@@ -56,7 +56,11 @@ code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 .icon { flex: none; vertical-align: -3px; }
 
 /* ── Shell ─────────────────────────────────────────── */
-.shell { display: grid; grid-template-columns: var(--sidebar) 1fr; min-height: 100vh; }
+.shell {
+  display: grid; grid-template-columns: var(--sidebar) 1fr; min-height: 100vh;
+  /* Paint the sidebar column full height even when the page outgrows the viewport. */
+  background: linear-gradient(to right, var(--surface) calc(var(--sidebar) - 1px), var(--border) calc(var(--sidebar) - 1px), var(--border) var(--sidebar), var(--bg) var(--sidebar));
+}
 .sidebar {
   background: var(--surface); border-right: 1px solid var(--border);
   display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto;
@@ -77,7 +81,7 @@ code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 .content { padding: 28px 32px 48px; min-width: 0; max-width: 1240px; width: 100%; }
 
 @media (max-width: 860px) {
-  .shell { grid-template-columns: 1fr; }
+  .shell { grid-template-columns: 1fr; background: var(--bg); }
   .sidebar { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); }
   .sidebar .nav-toggle-btn { display: inline-flex; }
   .nav, .sidebar-user { display: none; }
@@ -96,6 +100,9 @@ code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .between { justify-content: space-between; }
 .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.with-aside { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+.with-aside > aside > .card + .card { margin-top: 16px; }
+@media (max-width: 1000px) { .with-aside { grid-template-columns: 1fr; } }
 .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
 .muted { color: var(--muted); }
 .small { font-size: 0.85rem; }
@@ -224,3 +231,9 @@ tfoot td { font-weight: 600; border-bottom: 0; }
 .tree a.active, .tree a:hover { background: var(--surface-2); text-decoration: none; }
 .tree ul { list-style: none; margin: 0; padding-left: 14px; }
 .tree > ul { padding-left: 0; }
+
+/* ── TimeTrack ─────────────────────────────────────── */
+.timer-bar { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.timer-clock { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.day + .day { margin-top: 18px; }
+.day-head { padding-bottom: 6px; border-bottom: 1px solid var(--border); }

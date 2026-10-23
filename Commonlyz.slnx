@@ -3,4 +3,8 @@
     <Project Path="src/Commonlyz.Core/Commonlyz.Core.csproj" />
     <Project Path="src/Commonlyz.Web/Commonlyz.Web.csproj" />
   </Folder>
+  <Folder Name="/src/Modules/">
+    <Project Path="src/Modules/Commonlyz.Modules.ShortLink/Commonlyz.Modules.ShortLink.csproj" />
+    <Project Path="src/Modules/Commonlyz.Modules.TimeTrack/Commonlyz.Modules.TimeTrack.csproj" />
+  </Folder>
 </Solution>

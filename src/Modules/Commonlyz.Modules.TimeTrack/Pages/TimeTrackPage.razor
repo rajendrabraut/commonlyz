@@ -1,0 +1,293 @@
+@page "/timetrack"
+@inherits ModulePage
+@implements IDisposable
+@inject TimeTrackService Time
+@inject ICurrentUser CurrentUser
+@inject TimeProvider Clock
+
+<PageHeader Title="TimeTrack" Subtitle="@($"Week of {_weekStart:ddd d MMM yyyy} · {_timeZone}")">
+    <a class="btn" href="timetrack/projects">Projects</a>
+    <a class="btn" href="@($"timetrack/export.csv?from={Format.Date(_weekStart)}&to={Format.Date(_weekStart.AddDays(6))}")" download><Icon Name="download" /> CSV</a>
+</PageHeader>
+<Alerts Error="@Error" Success="@Success" />
+
+@* ── Timer bar ── *@
+<section class="card timer-bar">
+    @if (_running is not null)
+    {
+        <div class="row grow">
+            <span class="dot" style="background:@(_running.ProjectColor ?? "#9ca3af")"></span>
+            <strong>@(_running.Description ?? "(no description)")</strong>
+            <span class="muted">@_running.ProjectName</span>
+        </div>
+        <span class="timer-clock mono">@Format.Duration((long)(Clock.GetUtcNow().UtcDateTime - _running.StartUtc).TotalSeconds)</span>
+        <button class="btn danger" @onclick="StopAsync" disabled="@Busy"><Icon Name="stop" /> Stop</button>
+    }
+    else
+    {
+        <EditForm Model="_timer" OnSubmit="StartAsync" class="form-row grow">
+            <label class="field wide"><span>What are you working on?</span><InputText @bind-Value="_timer.Description" /></label>
+            <label class="field"><span>Project</span><ProjectSelect @bind-Value="_timer.ProjectId" Projects="_projects" /></label>
+            <button class="btn primary" disabled="@Busy"><Icon Name="play" /> Start</button>
+        </EditForm>
+    }
+</section>
+
+@* ── Week navigation ── *@
+<section class="row between" style="margin:16px 0">
+    <div class="btn-group">
+        <button class="btn" @onclick="() => MoveWeekAsync(-7)"><Icon Name="left" /></button>
+        <button class="btn" @onclick="() => MoveWeekAsync(0)">This week</button>
+        <button class="btn" @onclick="() => MoveWeekAsync(7)"><Icon Name="right" /></button>
+    </div>
+    <div class="row">
+        <span class="muted">Week total</span> <strong class="mono">@Format.Duration(_week?.TotalSeconds ?? 0)</strong>
+        <select @bind="_timeZone" @bind:after="SaveTimeZoneAsync" style="width:auto" title="Time zone">
+            @foreach (var id in Zones.AllIds) { <option value="@id">@id</option> }
+        </select>
+    </div>
+</section>
+
+@if (_week is not null)
+{
+    <div class="with-aside">
+        <section class="card">
+            @foreach (var day in _week.Days)
+            {
+                <div class="day">
+                    <div class="row between day-head">
+                        <strong>@day.Date.ToString("dddd d MMM", System.Globalization.CultureInfo.InvariantCulture)</strong>
+                        <span class="mono muted">@Format.Duration(day.Seconds)</span>
+                    </div>
+                    @if (day.Items.Count == 0)
+                    {
+                        <p class="muted small">No time tracked.</p>
+                    }
+                    <ul class="list">
+                        @foreach (var (entry, portion) in day.Items)
+                        {
+                            <li>
+                                @if (_editing?.Id == entry.Id)
+                                {
+                                    <EditForm Model="_edit" OnSubmit="SaveEditAsync" class="form-row">
+                                        <label class="field narrow"><span>Date</span><InputDate @bind-Value="_edit.Date" /></label>
+                                        <label class="field narrow"><span>Start</span><input type="time" @bind="_edit.Start" /></label>
+                                        @if (!entry.IsRunning)
+                                        {
+                                            <label class="field narrow"><span>End</span><input type="time" @bind="_edit.End" /></label>
+                                        }
+                                        <label class="field wide"><span>Description</span><InputText @bind-Value="_edit.Description" /></label>
+                                        <label class="field"><span>Project</span><ProjectSelect @bind-Value="_edit.ProjectId" Projects="_allProjects" /></label>
+                                        <button class="btn primary sm">Save</button>
+                                        <button type="button" class="btn sm ghost" @onclick="() => _editing = null">Cancel</button>
+                                    </EditForm>
+                                }
+                                else
+                                {
+                                    <div class="row">
+                                        <span class="dot" style="background:@(entry.ProjectColor ?? "#9ca3af")"></span>
+                                        <span class="grow">
+                                            @(entry.Description ?? "(no description)")
+                                            @if (entry.ProjectName is not null) { <span class="muted small"> · @entry.ProjectName</span> }
+                                            @if (entry.IsRunning) { <span class="badge info">running</span> }
+                                            @if (entry.HasOverlap) { <span class="badge warn" title="Overlaps another entry">overlap</span> }
+                                        </span>
+                                        <span class="muted small mono">@LocalTime(portion.StartUtc)–@(entry.IsRunning && portion.EndUtc >= Clock.GetUtcNow().UtcDateTime.AddSeconds(-1) ? "now" : LocalTime(portion.EndUtc))</span>
+                                        <span class="mono">@Format.Duration(portion.Seconds)</span>
+                                        <button class="btn sm ghost" title="Edit" @onclick="() => BeginEdit(entry)"><Icon Name="edit" Size="16" /></button>
+                                        <ConfirmButton IconOnly OnConfirm="() => DeleteAsync(entry)" />
+                                    </div>
+                                }
+                            </li>
+                        }
+                    </ul>
+                </div>
+            }
+        </section>
+
+        <aside>
+            <section class="card">
+                <h2>By project</h2>
+                @if (_week.Projects.Count == 0)
+                {
+                    <p class="muted">Nothing tracked this week.</p>
+                }
+                @foreach (var (name, color, seconds) in _week.Projects)
+                {
+                    <div class="stack" style="margin-bottom:10px">
+                        <div class="row between small"><span><span class="dot" style="background:@color"></span> @name</span><span class="mono">@Format.Hours(seconds) h</span></div>
+                        <div class="progress"><span style="width:@Pct(seconds);background:@color"></span></div>
+                    </div>
+                }
+            </section>
+
+            <section class="card">
+                <h2>Add time manually</h2>
+                <EditForm Model="_manual" OnSubmit="AddManualAsync" class="stack">
+                    <label class="field"><span>Date</span><InputDate @bind-Value="_manual.Date" /></label>
+                    <div class="row">
+                        <label class="field grow"><span>Start</span><input type="time" @bind="_manual.Start" /></label>
+                        <label class="field grow"><span>End</span><input type="time" @bind="_manual.End" /></label>
+                    </div>
+                    <label class="field"><span>Description</span><InputText @bind-Value="_manual.Description" /></label>
+                    <label class="field"><span>Project</span><ProjectSelect @bind-Value="_manual.ProjectId" Projects="_projects" /></label>
+                    <p class="muted small">An end time before the start means the entry runs past midnight.</p>
+                    <button class="btn primary block" disabled="@Busy">Add entry</button>
+                </EditForm>
+            </section>
+        </aside>
+    </div>
+}
+
+@code {
+    private string _userId = "";
+    private string _timeZone = "UTC";
+    private DateOnly _weekStart;
+    private WeekView? _week;
+    private EntryView? _running;
+    private IReadOnlyList<Data.Project> _projects = [];
+    private IReadOnlyList<Data.Project> _allProjects = [];
+    private TimerForm _timer = new();
+    private EntryForm _manual = new();
+    private EntryForm _edit = new();
+    private EntryView? _editing;
+    private PeriodicTimer? _ticker;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _userId = (await CurrentUser.GetAsync()).Id;
+        _timeZone = await Time.GetTimeZoneAsync(_userId);
+        _weekStart = Zones.StartOfWeek(Today());
+        _manual = new EntryForm { Date = Today(), Start = new TimeOnly(9, 0), End = new TimeOnly(10, 0) };
+        _allProjects = await Time.ListProjectsAsync(includeArchived: true);
+        _projects = [.. _allProjects.Where(p => p.ArchivedUtc is null)];
+        await LoadAsync();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+            _ = TickAsync();
+    }
+
+    // Re-render once a second so the running timer counts up. No JavaScript involved.
+    private async Task TickAsync()
+    {
+        _ticker = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        try
+        {
+            while (await _ticker.WaitForNextTickAsync())
+            {
+                if (_running is not null)
+                    await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _running = await Time.GetRunningAsync(_userId);
+        _week = await Time.GetWeekAsync(_userId, _weekStart, _timeZone);
+    }
+
+    private DateOnly Today() => Zones.LocalDate(Clock.GetUtcNow().UtcDateTime, Zones.Get(_timeZone));
+
+    private string LocalTime(DateTime utc) => Zones.ToLocal(utc, Zones.Get(_timeZone)).ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+
+    private string Pct(long seconds) => _week is { TotalSeconds: > 0 } w
+        ? (seconds * 100.0 / w.TotalSeconds).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "%"
+        : "0%";
+
+    private Task MoveWeekAsync(int days) => RunAsync(async () =>
+    {
+        _weekStart = days == 0 ? Zones.StartOfWeek(Today()) : _weekStart.AddDays(days);
+        await LoadAsync();
+    });
+
+    private Task SaveTimeZoneAsync() => RunAsync(async () =>
+    {
+        await Time.SetTimeZoneAsync(_userId, _timeZone);
+        _weekStart = Zones.StartOfWeek(Today());
+        await LoadAsync();
+    });
+
+    private Task StartAsync() => RunAsync(async () =>
+    {
+        await Time.StartAsync(_userId, _timer.Description, _timer.ProjectId);
+        _timer = new();
+        await LoadAsync();
+    });
+
+    private Task StopAsync() => RunAsync(async () =>
+    {
+        await Time.StopAsync(_userId);
+        await LoadAsync();
+    });
+
+    private Task AddManualAsync() => RunAsync(async () =>
+    {
+        var (start, end) = ToUtcRange(_manual);
+        await Time.AddEntryAsync(_userId, start, end!.Value, _manual.Description, _manual.ProjectId);
+        _manual = new EntryForm { Date = _manual.Date, Start = _manual.End, End = _manual.End.AddHours(1) };
+        await LoadAsync();
+    }, "Entry added.");
+
+    private void BeginEdit(EntryView entry)
+    {
+        var zone = Zones.Get(_timeZone);
+        var start = Zones.ToLocal(entry.StartUtc, zone);
+        _edit = new EntryForm
+        {
+            Date = DateOnly.FromDateTime(start),
+            Start = TimeOnly.FromDateTime(start),
+            End = entry.EndUtc is { } e ? TimeOnly.FromDateTime(Zones.ToLocal(e, zone)) : TimeOnly.FromDateTime(start),
+            Description = entry.Description,
+            ProjectId = entry.ProjectId,
+        };
+        _editing = entry;
+    }
+
+    private Task SaveEditAsync() => RunAsync(async () =>
+    {
+        var (start, end) = ToUtcRange(_edit);
+        await Time.UpdateEntryAsync(_userId, _editing!.Id, start, _editing.IsRunning ? null : end, _edit.Description, _edit.ProjectId);
+        _editing = null;
+        await LoadAsync();
+    }, "Entry updated.");
+
+    private Task DeleteAsync(EntryView entry) => RunAsync(async () =>
+    {
+        await Time.DeleteEntryAsync(_userId, entry.Id);
+        await LoadAsync();
+    });
+
+    /// <summary>Local date + times → UTC. An end at or before the start rolls over to the next day.</summary>
+    private (DateTime Start, DateTime? End) ToUtcRange(EntryForm form)
+    {
+        var zone = Zones.Get(_timeZone);
+        var date = form.Date ?? Today();
+        var start = Zones.ToUtc(date, form.Start, zone);
+        var end = Zones.ToUtc(form.End <= form.Start ? date.AddDays(1) : date, form.End, zone);
+        return (start, end);
+    }
+
+    public void Dispose() => _ticker?.Dispose();
+
+    private sealed class TimerForm
+    {
+        public string? Description { get; set; }
+        public int? ProjectId { get; set; }
+    }
+
+    private sealed class EntryForm
+    {
+        public DateOnly? Date { get; set; }
+        public TimeOnly Start { get; set; }
+        public TimeOnly End { get; set; }
+        public string? Description { get; set; }
+        public int? ProjectId { get; set; }
+    }
+}

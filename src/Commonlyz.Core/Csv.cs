@@ -22,5 +22,8 @@ public static class Csv
             : value;
     }
 
-    public static readonly Encoding Utf8WithBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
+    private static readonly UTF8Encoding Utf8WithBom = new(encoderShouldEmitUTF8Identifier: true);
+
+    /// <summary>UTF-8 with BOM so Excel detects the encoding.</summary>
+    public static byte[] ToBytes(string csv) => [.. Utf8WithBom.GetPreamble(), .. Utf8WithBom.GetBytes(csv)];
 }

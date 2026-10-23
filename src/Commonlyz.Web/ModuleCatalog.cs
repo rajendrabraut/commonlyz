@@ -8,6 +8,8 @@ public static class ModuleCatalog
 {
     public static readonly IReadOnlyList<IAppModule> All =
     [
+        new Modules.ShortLink.ShortLinkModule(),
+        new Modules.TimeTrack.TimeTrackModule(),
     ];
 
     public static Assembly[] Assemblies => [.. All.Select(m => m.GetType().Assembly).Distinct()];
