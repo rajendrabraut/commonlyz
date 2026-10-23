@@ -36,11 +36,12 @@ Open http://localhost:8080 and sign in with `ADMIN_EMAIL` / `ADMIN_PASSWORD`. Th
 docker compose up -d sql                       # SQL Server 2022 on :1433
 dotnet run --project src/Commonlyz.Web         # http://localhost:5100
 ```
+To see real emails locally, run a catch-all SMTP server such as [Mailpit](https://mailpit.axllent.org) (`docker run -p 1025:1025 -p 8025:8025 axllent/mailpit`) and start the app with `Email__Host=localhost Email__Port=1025 Email__Security=None`.
 Development sign-in: `admin@commonlyz.local` / `Admin123!` (from `appsettings.Development.json`). Every module's migrations run on startup.
 
 ### Tests
 ```bash
-dotnet test     # 119 tests; integration tests start SQL Server via Testcontainers (Docker required)
+dotnet test     # 130 tests; integration tests start SQL Server via Testcontainers (Docker required)
 ```
 
 ## Architecture
@@ -88,6 +89,11 @@ eng/                     new-module.sh, register-module.py, add-migration.sh, de
 | `ConnectionStrings:Default` | SQL Server connection string |
 | `Admin:Email`, `Admin:Password`, `Admin:DisplayName` | First admin, created on an empty database only |
 | `Database:MigrateOnStartup` | Apply all module migrations at startup (default `true`) |
+| `Email:Host`, `Email:Port`, `Email:Security` | SMTP server. Leave `Host` empty to write emails to the log instead. `Security`: `Auto` (default), `StartTls`, `SslOnConnect`, `None` |
+| `Email:Username`, `Email:Password` | SMTP login (omit for servers that don't require auth) |
+| `Email:FromAddress`, `Email:FromName` | Sender shown to recipients |
+| `Email:DispatcherEnabled` | Run the delivery worker in this instance (default `true`; turn off on web-only nodes) |
+| `Email:MaxAttempts`, `Email:PollInterval`, `Email:BatchSize` | Retry and polling tuning (defaults 8, 10 s, 20) |
 
 Environment variables use `__`, e.g. `ConnectionStrings__Default`, `Admin__Password`.
 
@@ -103,5 +109,5 @@ python3 eng/register-module.py Invoices      # project reference + ModuleCatalog
 - Run behind a reverse proxy with HTTPS; set `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true`.
 - Data Protection keys are stored in the database, so sign-in cookies survive restarts and work across instances.
 - Chat's real-time notifier and PixelSqueeze's temporary file cache are in-memory: run a single instance, or add a backplane (Redis / Azure SignalR) before scaling out.
-- Email (SlotBook confirmations, ClientCollect reminders) goes through `INotificationSender`, which logs by default. Register an SMTP or SendGrid implementation in `Program.cs` to actually send mail.
+- Email (SlotBook confirmations with cancel links, ClientCollect reminders) uses a **database outbox**: `INotificationSender` only queues, and a background dispatcher sends over SMTP (MailKit), with exponential backoff up to `MaxAttempts`. A slow or down mail server never fails a booking or page, and nothing is lost on restart. Rows are claimed with a lease (`UPDATE … OUTPUT` with `READPAST`), so several instances can run the dispatcher without double-sending. Admins can see delivery status, errors and retries, and send a test email, at **/email**.
 - Back up the database (Azure SQL point-in-time restore, or `BACKUP DATABASE … TO URL`). ClientCollect uploads (10 MB each) live in it too.

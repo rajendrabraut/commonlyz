@@ -1,6 +1,7 @@
 @page "/book/{Slug}"
 @inject SlotBookService Slots
 @inject TimeProvider Clock
+@inject NavigationManager Navigation
 
 @if (!_loaded)
 {
@@ -120,7 +121,7 @@ else
         _error = null;
         try
         {
-            _booked = await Slots.BookAsync(Slug, _selected!.Value.StartUtc, _guest.Name, _guest.Email, _guest.Notes);
+            _booked = await Slots.BookAsync(Slug, _selected!.Value.StartUtc, _guest.Name, _guest.Email, _guest.Notes, Navigation.BaseUri);
         }
         catch (AppException ex)
         {

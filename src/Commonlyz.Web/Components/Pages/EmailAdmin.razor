@@ -1,0 +1,109 @@
+@page "/email"
+@attribute [Authorize(Roles = Roles.Admin)]
+@inherits ModulePage
+@using Commonlyz.Web.Notifications
+@inject EmailOutbox Outbox
+@inject IEmailTransport Transport
+@inject INotificationSender Notifications
+@inject ICurrentUser CurrentUser
+
+<PageHeader Title="Email" Subtitle="@Transport.Description">
+    <button class="btn" @onclick="LoadAsync"><Icon Name="activity" /> Refresh</button>
+</PageHeader>
+<Alerts Error="@Error" Success="@Success" />
+
+@if (Transport is LogEmailTransport)
+{
+    <div class="alert warning">
+        <Icon Name="alert" /> SMTP isn't configured, so emails are only written to the log. Set <code>Email__Host</code>,
+        <code>Email__Port</code>, <code>Email__Username</code>, <code>Email__Password</code> and <code>Email__FromAddress</code> to send real mail.
+    </div>
+}
+
+<section class="stat-row">
+    <StatTile Label="Queued" Value="@N(_counts?.Queued)" />
+    <StatTile Label="Retrying" Value="@N(_counts?.Retrying)" />
+    <StatTile Label="Sent" Value="@N(_counts?.Sent)" />
+    <StatTile Label="Failed" Value="@N(_counts?.Failed)" Hint="After all retries" />
+</section>
+
+<section class="card">
+    <h2>Send a test email</h2>
+    <EditForm Model="_test" OnSubmit="SendTestAsync" class="form-row">
+        <label class="field wide"><span>To</span><InputText @bind-Value="_test.To" type="email" /></label>
+        <button class="btn primary" disabled="@Busy"><Icon Name="message" /> Queue test email</button>
+    </EditForm>
+    <p class="muted small">Emails are queued first and delivered by a background worker within a few seconds, with automatic retries if the mail server is unavailable.</p>
+</section>
+
+<section class="card">
+    <h2>Recent emails</h2>
+    @if (_recent.Count == 0)
+    {
+        <EmptyState Message="Nothing sent yet." IconName="message" />
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Queued (UTC)</th><th>To</th><th>Subject</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var email in _recent)
+                    {
+                        <tr>
+                            <td class="nowrap small">@Format.DateTime(email.CreatedUtc)</td>
+                            <td>@email.ToAddress</td>
+                            <td class="truncate" title="@email.Body">@email.Subject</td>
+                            <td>
+                                <span class="badge @(email.Status switch { "Sent" => "ok", "Failed" => "bad", "Retrying" => "warn", _ => "info" })">@email.Status</span>
+                                @if (email.Attempts > 1) { <span class="muted small"> · @email.Attempts attempts</span> }
+                                @if (email.LastError is not null && email.SentUtc is null) { <div class="danger-text small truncate" title="@email.LastError">@email.LastError</div> }
+                            </td>
+                            <td class="actions">
+                                @if (email.FailedUtc is not null) { <button class="btn sm" @onclick="() => RetryAsync(email.Id)">Retry</button> }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@code {
+    private OutboxCounts? _counts;
+    private IReadOnlyList<OutboxEmail> _recent = [];
+    private readonly TestForm _test = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _test.To = (await CurrentUser.GetAsync()).Email;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _counts = await Outbox.CountsAsync();
+        _recent = await Outbox.RecentAsync();
+    }
+
+    private static string N(int? n) => n?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "…";
+
+    private Task SendTestAsync() => RunAsync(async () =>
+    {
+        await Notifications.SendAsync(_test.To, "Commonlyz test email",
+            "This is a test email from Commonlyz. If you can read this, outgoing email works.");
+        await LoadAsync();
+    }, "Test email queued. Refresh in a few seconds to see it delivered.");
+
+    private Task RetryAsync(long id) => RunAsync(async () =>
+    {
+        await Outbox.RetryAsync(id);
+        await LoadAsync();
+    }, "Queued for retry.");
+
+    private sealed class TestForm
+    {
+        public string To { get; set; } = "";
+    }
+}
