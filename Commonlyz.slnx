@@ -4,7 +4,11 @@
     <Project Path="src/Commonlyz.Web/Commonlyz.Web.csproj" />
   </Folder>
   <Folder Name="/src/Modules/">
+    <Project Path="src/Modules/Commonlyz.Modules.DailyJournal/Commonlyz.Modules.DailyJournal.csproj" />
+    <Project Path="src/Modules/Commonlyz.Modules.LinkHub/Commonlyz.Modules.LinkHub.csproj" />
+    <Project Path="src/Modules/Commonlyz.Modules.PixelSqueeze/Commonlyz.Modules.PixelSqueeze.csproj" />
     <Project Path="src/Modules/Commonlyz.Modules.ShortLink/Commonlyz.Modules.ShortLink.csproj" />
+    <Project Path="src/Modules/Commonlyz.Modules.SplitShare/Commonlyz.Modules.SplitShare.csproj" />
     <Project Path="src/Modules/Commonlyz.Modules.TimeTrack/Commonlyz.Modules.TimeTrack.csproj" />
   </Folder>
 </Solution>

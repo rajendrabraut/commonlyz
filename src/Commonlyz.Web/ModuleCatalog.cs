@@ -10,6 +10,10 @@ public static class ModuleCatalog
     [
         new Modules.ShortLink.ShortLinkModule(),
         new Modules.TimeTrack.TimeTrackModule(),
+        new Modules.LinkHub.LinkHubModule(),
+        new Modules.PixelSqueeze.PixelSqueezeModule(),
+        new Modules.DailyJournal.DailyJournalModule(),
+        new Modules.SplitShare.SplitShareModule(),
     ];
 
     public static Assembly[] Assemblies => [.. All.Select(m => m.GetType().Assembly).Distinct()];

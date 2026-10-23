@@ -1,0 +1,28 @@
+@page "/p/{Handle}"
+@attribute [ExcludeFromInteractiveRouting]
+@inject LinkHubService Hub
+
+@if (_loaded && _profile is null)
+{
+    <PageTitle>Not found</PageTitle>
+    <div class="card center"><h1>Profile not found</h1><p class="muted">It may be unpublished or the handle changed.</p></div>
+}
+else if (_profile is not null)
+{
+    <PageTitle>@_profile.DisplayName</PageTitle>
+    <HeadContent><meta name="description" content="@_profile.Bio" /></HeadContent>
+    <ProfileView Profile="_profile" />
+}
+
+@code {
+    [Parameter] public string Handle { get; set; } = "";
+
+    private Profile? _profile;
+    private bool _loaded;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _profile = await Hub.GetPublicAsync(Handle);
+        _loaded = true;
+    }
+}

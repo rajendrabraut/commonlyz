@@ -1,0 +1,153 @@
+@page "/linkhub/{Id:int}"
+@inherits ModulePage
+@inject LinkHubService Hub
+@inject NavigationManager Navigation
+
+@if (_profile is null)
+{
+    <Alerts Error="@Error" />
+}
+else
+{
+    <PageHeader Title="@_profile.DisplayName" Subtitle="@($"/p/{_profile.Handle}")">
+        <a class="btn" href="linkhub"><Icon Name="left" /> Profiles</a>
+        <a class="btn" href="@($"p/{_profile.Handle}")" target="_blank"><Icon Name="external" /> View page</a>
+    </PageHeader>
+    <Alerts Error="@Error" Success="@Success" />
+
+    <div class="with-aside">
+        <div>
+            <section class="card">
+                <h2>Links</h2>
+                <EditForm Model="_link" OnSubmit="SaveLinkAsync" class="form-row">
+                    <label class="field"><span>Title</span><InputText @bind-Value="_link.Title" required /></label>
+                    <label class="field wide"><span>URL</span><InputText @bind-Value="_link.Url" type="url" required /></label>
+                    <label class="check"><InputCheckbox @bind-Value="_link.IsDraft" /> Draft</label>
+                    <button class="btn primary" disabled="@Busy">@(_link.Id is null ? "Add link" : "Save link")</button>
+                    @if (_link.Id is not null) { <button type="button" class="btn ghost" @onclick="() => _link = new()">Cancel</button> }
+                </EditForm>
+
+                @if (_profile.Links.Count == 0)
+                {
+                    <EmptyState Message="No links yet." IconName="link" />
+                }
+                <ul class="list" style="margin-top:12px">
+                    @foreach (var link in _profile.Links)
+                    {
+                        <li class="row">
+                            <div class="btn-group">
+                                <button class="btn sm ghost" title="Move up" @onclick="() => MoveAsync(link, -1)"><Icon Name="up" Size="16" /></button>
+                                <button class="btn sm ghost" title="Move down" @onclick="() => MoveAsync(link, 1)"><Icon Name="down" Size="16" /></button>
+                            </div>
+                            <div class="grow">
+                                <strong>@link.Title</strong> @if (link.IsDraft) { <span class="badge">draft</span> }
+                                <div class="muted small truncate">@link.Url</div>
+                            </div>
+                            <span class="muted small">@Format.Number(link.ClickCount) clicks</span>
+                            <button class="btn sm ghost" @onclick="() => _link = new LinkForm { Id = link.Id, Title = link.Title, Url = link.Url, IsDraft = link.IsDraft }"><Icon Name="edit" Size="16" /></button>
+                            <ConfirmButton IconOnly OnConfirm="() => DeleteLinkAsync(link)" />
+                        </li>
+                    }
+                </ul>
+            </section>
+
+            <section class="card">
+                <h2>Profile</h2>
+                <EditForm Model="_form" OnSubmit="SaveProfileAsync" class="stack">
+                    <div class="form-row">
+                        <label class="field"><span>Handle</span><InputText @bind-Value="_form.Handle" /></label>
+                        <label class="field wide"><span>Display name</span><InputText @bind-Value="_form.Name" /></label>
+                        <label class="field narrow"><span>Accent</span><input type="color" @bind="_form.Accent" /></label>
+                    </div>
+                    <label class="field"><span>Bio (280 chars)</span><InputTextArea @bind-Value="_form.Bio" rows="3" maxlength="280" /></label>
+                    <label class="field"><span>Avatar image URL</span><InputText @bind-Value="_form.Avatar" type="url" /></label>
+                    <label class="check"><InputCheckbox @bind-Value="_form.Published" /> Published (visible to anyone)</label>
+                    <div class="row between">
+                        <button class="btn primary" disabled="@Busy">Save profile</button>
+                        <ConfirmButton Text="Delete profile" OnConfirm="DeleteProfileAsync" />
+                    </div>
+                </EditForm>
+            </section>
+        </div>
+
+        <aside>
+            <section class="card">
+                <h2>Preview</h2>
+                <ProfileView Profile="_profile" Preview />
+            </section>
+        </aside>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private Profile? _profile;
+    private readonly ProfileForm _form = new();
+    private LinkForm _link = new();
+
+    protected override Task OnParametersSetAsync() => RunAsync(LoadAsync);
+
+    private async Task LoadAsync()
+    {
+        _profile = await Hub.GetProfileAsync(Id);
+        _form.Handle = _profile.Handle;
+        _form.Name = _profile.DisplayName;
+        _form.Bio = _profile.Bio;
+        _form.Avatar = _profile.AvatarUrl;
+        _form.Accent = _profile.AccentColor;
+        _form.Published = _profile.IsPublished;
+    }
+
+    private Task SaveProfileAsync() => RunAsync(async () =>
+    {
+        await Hub.UpdateProfileAsync(Id, _form.Handle, _form.Name, _form.Bio, _form.Avatar, _form.Accent, _form.Published);
+        await LoadAsync();
+    }, "Profile saved.");
+
+    private Task DeleteProfileAsync() => RunAsync(async () =>
+    {
+        await Hub.DeleteProfileAsync(Id);
+        Navigation.NavigateTo("linkhub");
+    });
+
+    private Task SaveLinkAsync() => RunAsync(async () =>
+    {
+        if (_link.Id is { } linkId)
+            await Hub.UpdateLinkAsync(linkId, _link.Title, _link.Url, _link.IsDraft);
+        else
+            await Hub.AddLinkAsync(Id, _link.Title, _link.Url, _link.IsDraft);
+        _link = new();
+        await LoadAsync();
+    });
+
+    private Task MoveAsync(ProfileLink link, int direction) => RunAsync(async () =>
+    {
+        await Hub.MoveLinkAsync(link.Id, direction);
+        await LoadAsync();
+    });
+
+    private Task DeleteLinkAsync(ProfileLink link) => RunAsync(async () =>
+    {
+        await Hub.DeleteLinkAsync(link.Id);
+        await LoadAsync();
+    });
+
+    private sealed class ProfileForm
+    {
+        public string Handle { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string? Bio { get; set; }
+        public string? Avatar { get; set; }
+        public string Accent { get; set; } = "#2563eb";
+        public bool Published { get; set; }
+    }
+
+    private sealed class LinkForm
+    {
+        public int? Id { get; set; }
+        public string Title { get; set; } = "";
+        public string Url { get; set; } = "";
+        public bool IsDraft { get; set; }
+    }
+}

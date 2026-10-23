@@ -1,0 +1,60 @@
+@page "/splitshare"
+@inherits ModulePage
+@inject SplitShareService Split
+@inject NavigationManager Navigation
+
+<PageHeader Title="SplitShare" Subtitle="Track shared expenses and settle up with the fewest transfers." />
+<Alerts Error="@Error" Success="@Success" />
+
+<section class="card">
+    <h2>New group</h2>
+    <EditForm Model="_form" OnSubmit="CreateAsync" class="form-row">
+        <label class="field"><span>Name</span><InputText @bind-Value="_form.Name" placeholder="Lisbon trip" required /></label>
+        <label class="field narrow"><span>Currency</span><InputText @bind-Value="_form.Currency" maxlength="3" /></label>
+        <label class="field wide"><span>People (comma separated)</span><InputText @bind-Value="_form.Members" placeholder="Ana, Ben, Chloe" /></label>
+        <button class="btn primary" disabled="@Busy"><Icon Name="plus" /> Create</button>
+    </EditForm>
+</section>
+
+<section class="card">
+    @if (_groups.Count == 0)
+    {
+        <EmptyState Message="No groups yet." IconName="percent" />
+    }
+    else
+    {
+        <table>
+            <thead><tr><th>Group</th><th>People</th><th class="num">Total spent</th></tr></thead>
+            <tbody>
+                @foreach (var (group, total) in _groups)
+                {
+                    <tr>
+                        <td><a href="@($"splitshare/{group.Id}")">@group.Name</a></td>
+                        <td class="muted">@string.Join(", ", group.Members.Select(m => m.Name))</td>
+                        <td class="num">@Format.Money(total, group.Currency)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+@code {
+    private IReadOnlyList<(Data.ExpenseGroup Group, long Total)> _groups = [];
+    private readonly Form _form = new();
+
+    protected override async Task OnInitializedAsync() => _groups = await Split.ListGroupsAsync();
+
+    private Task CreateAsync() => RunAsync(async () =>
+    {
+        var id = await Split.CreateGroupAsync(_form.Name, _form.Currency, _form.Members.Split(','));
+        Navigation.NavigateTo($"splitshare/{id}");
+    });
+
+    private sealed class Form
+    {
+        public string Name { get; set; } = "";
+        public string Currency { get; set; } = "EUR";
+        public string Members { get; set; } = "";
+    }
+}

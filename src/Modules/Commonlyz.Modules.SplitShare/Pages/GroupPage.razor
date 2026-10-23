@@ -1,0 +1,226 @@
+@page "/splitshare/{Id:int}"
+@inherits ModulePage
+@inject SplitShareService Split
+@inject NavigationManager Navigation
+@inject TimeProvider Clock
+
+@if (_view is null)
+{
+    <Alerts Error="@Error" />
+}
+else
+{
+    var currency = _view.Group.Currency;
+    <PageHeader Title="@_view.Group.Name" Subtitle="@($"{_view.Group.Members.Count} people · {Format.Money(_view.Expenses.Sum(e => e.AmountMinor), currency)} spent")">
+        <a class="btn" href="splitshare"><Icon Name="left" /> Groups</a>
+    </PageHeader>
+    <Alerts Error="@Error" Success="@Success" />
+
+    <div class="with-aside">
+        <div>
+            <section class="card">
+                <h2>Add expense</h2>
+                <EditForm Model="_expense" OnSubmit="AddExpenseAsync" class="stack">
+                    <div class="form-row">
+                        <label class="field wide"><span>Description</span><InputText @bind-Value="_expense.Description" placeholder="Dinner" /></label>
+                        <label class="field narrow"><span>Amount (@currency)</span><InputText @bind-Value="_expense.Amount" inputmode="decimal" placeholder="0.00" /></label>
+                        <label class="field"><span>Paid by</span>
+                            <InputSelect @bind-Value="_expense.PaidBy">
+                                @foreach (var m in _view.Group.Members) { <option value="@m.Id">@m.Name</option> }
+                            </InputSelect>
+                        </label>
+                        <label class="field narrow"><span>Date</span><InputDate @bind-Value="_expense.Date" /></label>
+                    </div>
+                    <div class="btn-group">
+                        @foreach (var type in Enum.GetValues<SplitType>())
+                        {
+                            <button type="button" class="btn sm @(_expense.Type == type ? "active" : null)" @onclick="() => _expense.Type = type">@type</button>
+                        }
+                    </div>
+                    <div class="split-parts">
+                        @foreach (var part in _expense.Parts)
+                        {
+                            <label class="check">
+                                <input type="checkbox" @bind="part.Included" /> @_view.MemberName(part.MemberId)
+                                @if (_expense.Type != SplitType.Equal && part.Included)
+                                {
+                                    <input type="text" inputmode="decimal" style="width:90px" @bind="part.Value" placeholder="@(_expense.Type switch { SplitType.Percent => "%", SplitType.Shares => "shares", _ => currency })" />
+                                }
+                            </label>
+                        }
+                    </div>
+                    <button class="btn primary" disabled="@Busy"><Icon Name="plus" /> Add expense</button>
+                </EditForm>
+            </section>
+
+            <section class="card">
+                <h2>Expenses</h2>
+                @if (_view.Expenses.Count == 0) { <EmptyState Message="No expenses yet." IconName="percent" /> }
+                <ul class="list">
+                    @foreach (var e in _view.Expenses)
+                    {
+                        <li class="row">
+                            <div class="grow">
+                                <strong>@e.Description</strong>
+                                <div class="muted small">
+                                    @Format.Date(e.ExpenseDate) · @_view.MemberName(e.PaidByMemberId) paid · @e.SplitType split:
+                                    @string.Join(", ", e.Shares.Select(s => $"{_view.MemberName(s.MemberId)} {Format.Money(s.ShareMinor)}"))
+                                </div>
+                            </div>
+                            <strong class="mono">@Format.Money(e.AmountMinor, currency)</strong>
+                            <ConfirmButton IconOnly OnConfirm="() => DeleteExpenseAsync(e.Id)" />
+                        </li>
+                    }
+                </ul>
+            </section>
+        </div>
+
+        <aside>
+            <section class="card">
+                <h2>Balances</h2>
+                <table>
+                    <tbody>
+                        @foreach (var m in _view.Group.Members)
+                        {
+                            var b = _view.Balances.GetValueOrDefault(m.Id);
+                            <tr>
+                                <td>@m.Name</td>
+                                <td class="num @(b > 0 ? "success-text" : b < 0 ? "danger-text" : "muted")">@(b > 0 ? "gets " : b < 0 ? "owes " : "")@Format.Money(Math.Abs(b))</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                <EditForm Model="_member" OnSubmit="AddMemberAsync" class="row" style="margin-top:12px">
+                    <InputText @bind-Value="_member.Name" placeholder="Add person" class="grow" />
+                    <button class="btn sm"><Icon Name="plus" Size="16" /></button>
+                </EditForm>
+            </section>
+
+            <section class="card">
+                <h2>Settle up</h2>
+                @if (_view.SuggestedTransfers.Count == 0)
+                {
+                    <p class="muted">Everyone is square.</p>
+                }
+                <ul class="list">
+                    @foreach (var (from, to, amount) in _view.SuggestedTransfers)
+                    {
+                        <li class="row">
+                            <span class="grow"><strong>@_view.MemberName(from)</strong> pays <strong>@_view.MemberName(to)</strong><br /><span class="mono">@Format.Money(amount, currency)</span></span>
+                            <button class="btn sm" @onclick="() => SettleAsync(from, to, amount)">Record</button>
+                        </li>
+                    }
+                </ul>
+                @if (_view.Settlements.Count > 0)
+                {
+                    <h3 style="margin-top:14px">History</h3>
+                    <ul class="list small">
+                        @foreach (var s in _view.Settlements)
+                        {
+                            <li class="row"><span class="grow">@_view.MemberName(s.FromMemberId) → @_view.MemberName(s.ToMemberId) · @Format.Money(s.AmountMinor)</span>
+                                <ConfirmButton IconOnly OnConfirm="() => DeleteSettlementAsync(s.Id)" /></li>
+                        }
+                    </ul>
+                }
+            </section>
+
+            <section class="card">
+                <ConfirmButton Text="Delete group" ConfirmText="Delete everything" OnConfirm="DeleteGroupAsync" />
+            </section>
+        </aside>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private GroupView? _view;
+    private ExpenseForm _expense = new();
+    private readonly MemberForm _member = new();
+
+    protected override Task OnParametersSetAsync() => RunAsync(async () =>
+    {
+        await LoadAsync();
+        ResetExpenseForm();
+    });
+
+    private async Task LoadAsync() => _view = await Split.GetGroupAsync(Id);
+
+    private void ResetExpenseForm() => _expense = new ExpenseForm
+    {
+        Date = DateOnly.FromDateTime(Clock.GetUtcNow().UtcDateTime),
+        PaidBy = _view?.Group.Members.FirstOrDefault()?.Id ?? 0,
+        Parts = [.. _view?.Group.Members.Select(m => new Part { MemberId = m.Id }) ?? []],
+    };
+
+    private Task AddExpenseAsync() => RunAsync(async () =>
+    {
+        AppException.ThrowIf(!Format.TryParseMoney(_expense.Amount, out var amount), "Enter an amount like 12.50.");
+        var parts = new List<(int, decimal)>();
+        foreach (var p in _expense.Parts.Where(p => p.Included))
+        {
+            decimal value = 1;
+            if (_expense.Type != SplitType.Equal &&
+                !decimal.TryParse(p.Value, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out value))
+                throw new AppException($"Enter a number for {_view!.MemberName(p.MemberId)}.");
+            parts.Add((p.MemberId, value));
+        }
+        await Split.AddExpenseAsync(Id, _expense.Description, amount, _expense.PaidBy, _expense.Date ?? DateOnly.FromDateTime(Clock.GetUtcNow().UtcDateTime), _expense.Type, parts);
+        await LoadAsync();
+        ResetExpenseForm();
+    }, "Expense added.");
+
+    private Task DeleteExpenseAsync(int expenseId) => RunAsync(async () =>
+    {
+        await Split.DeleteExpenseAsync(expenseId);
+        await LoadAsync();
+    });
+
+    private Task AddMemberAsync() => RunAsync(async () =>
+    {
+        await Split.AddMemberAsync(Id, _member.Name);
+        _member.Name = "";
+        await LoadAsync();
+        ResetExpenseForm();
+    });
+
+    private Task SettleAsync(int from, int to, long amount) => RunAsync(async () =>
+    {
+        await Split.RecordSettlementAsync(Id, from, to, amount);
+        await LoadAsync();
+    }, "Settlement recorded.");
+
+    private Task DeleteSettlementAsync(int settlementId) => RunAsync(async () =>
+    {
+        await Split.DeleteSettlementAsync(settlementId);
+        await LoadAsync();
+    });
+
+    private Task DeleteGroupAsync() => RunAsync(async () =>
+    {
+        await Split.DeleteGroupAsync(Id);
+        Navigation.NavigateTo("splitshare");
+    });
+
+    private sealed class ExpenseForm
+    {
+        public string Description { get; set; } = "";
+        public string? Amount { get; set; }
+        public int PaidBy { get; set; }
+        public DateOnly? Date { get; set; }
+        public SplitType Type { get; set; } = SplitType.Equal;
+        public List<Part> Parts { get; set; } = [];
+    }
+
+    private sealed class Part
+    {
+        public int MemberId { get; set; }
+        public bool Included { get; set; } = true;
+        public string? Value { get; set; }
+    }
+
+    private sealed class MemberForm
+    {
+        public string Name { get; set; } = "";
+    }
+}

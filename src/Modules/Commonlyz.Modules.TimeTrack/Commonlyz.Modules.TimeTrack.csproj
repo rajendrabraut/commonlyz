@@ -6,9 +6,6 @@
   </ItemGroup>
 
   <ItemGroup>
-  </ItemGroup>
-
-  <ItemGroup>
     <InternalsVisibleTo Include="Commonlyz.Tests" />
   </ItemGroup>
 

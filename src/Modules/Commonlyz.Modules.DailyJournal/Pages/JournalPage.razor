@@ -1,0 +1,120 @@
+@page "/journal"
+@inherits ModulePage
+@inject JournalService Journal
+@inject ICurrentUser CurrentUser
+@inject TimeProvider Clock
+
+<PageHeader Title="Journal" Subtitle="Private to you. Nobody else — admins included — can read your entries in the app.">
+    <a class="btn" href="journal/export.md"><Icon Name="download" /> Export</a>
+    <a class="btn primary" href="journal/new"><Icon Name="plus" /> New entry</a>
+</PageHeader>
+<Alerts Error="@Error" />
+
+<div class="with-aside">
+    <section class="card">
+        <div class="row">
+            <input type="search" class="grow" placeholder="Search entries" @bind="_query" @bind:event="oninput" @bind:after="SearchAsync" />
+        </div>
+        @if (_tag is not null)
+        {
+            <p class="small" style="margin:10px 0 0">Filtered by <span class="chip active">#@_tag</span> <button class="btn sm ghost" @onclick="() => FilterTagAsync(null)">clear</button></p>
+        }
+
+        @if (_entries.Count == 0)
+        {
+            <EmptyState Message="@(string.IsNullOrWhiteSpace(_query) && _tag is null ? "No entries yet. Write your first one." : "Nothing matches.")" IconName="book" />
+        }
+        <ul class="list" style="margin-top:8px">
+            @foreach (var e in _entries)
+            {
+                <li>
+                    <a href="@($"journal/{e.Id}")" class="journal-item">
+                        <span class="journal-date mono">@e.EntryDate.ToString("ddd d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)</span>
+                        <strong>@(e.Title ?? Preview(e.Body, 60))</strong>
+                        @if (e.Title is not null) { <span class="muted small">@Preview(e.Body, 140)</span> }
+                    </a>
+                    <div class="chips" style="margin-top:4px">
+                        @if (e.Mood is not null) { <span class="badge">@e.Mood</span> }
+                        @foreach (var t in e.Tags) { <button class="chip" @onclick="() => FilterTagAsync(t.Name)">#@t.Name</button> }
+                    </div>
+                </li>
+            }
+        </ul>
+    </section>
+
+    <aside>
+        <section class="card">
+            <div class="row between">
+                <button class="btn sm ghost" @onclick="() => MoveMonthAsync(-1)"><Icon Name="left" Size="16" /></button>
+                <strong>@_month.ToString("MMMM yyyy", System.Globalization.CultureInfo.InvariantCulture)</strong>
+                <button class="btn sm ghost" @onclick="() => MoveMonthAsync(1)"><Icon Name="right" Size="16" /></button>
+            </div>
+            <div class="calendar">
+                @foreach (var d in new[] { "M", "T", "W", "T", "F", "S", "S" }) { <span class="cal-head">@d</span> }
+                @for (var i = 0; i < Offset; i++) { <span></span> }
+                @for (var day = 1; day <= DateTime.DaysInMonth(_month.Year, _month.Month); day++)
+                {
+                    var date = new DateOnly(_month.Year, _month.Month, day);
+                    <a class="cal-day @(_days.Contains(date) ? "has" : null) @(date == _today ? "today" : null)" href="@($"journal/new?date={Format.Date(date)}")" title="@Format.Date(date)">@day</a>
+                }
+            </div>
+            <p class="muted small">Highlighted days have entries. Click a day to write for it.</p>
+        </section>
+
+        <section class="card">
+            <h2>Tags</h2>
+            @if (_tags.Count == 0) { <p class="muted small">Add tags to entries to see them here.</p> }
+            <div class="chips">
+                @foreach (var (name, count) in _tags)
+                {
+                    <button class="chip @(name == _tag ? "active" : null)" @onclick="() => FilterTagAsync(name)">#@name <span class="muted">@count</span></button>
+                }
+            </div>
+        </section>
+    </aside>
+</div>
+
+@code {
+    private string _userId = "";
+    private string? _query;
+    private string? _tag;
+    private IReadOnlyList<JournalEntry> _entries = [];
+    private IReadOnlyList<(string Name, int Count)> _tags = [];
+    private HashSet<DateOnly> _days = [];
+    private DateOnly _month;
+    private DateOnly _today;
+
+    private int Offset => ((int)_month.DayOfWeek + 6) % 7;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _userId = (await CurrentUser.GetAsync()).Id;
+        _today = DateOnly.FromDateTime(Clock.GetUtcNow().UtcDateTime);
+        _month = new DateOnly(_today.Year, _today.Month, 1);
+        _tags = await Journal.TagsAsync(_userId);
+        await SearchAsync();
+        await LoadMonthAsync();
+    }
+
+    private async Task SearchAsync() => _entries = await Journal.SearchAsync(_userId, _query, _tag);
+
+    private async Task FilterTagAsync(string? tag)
+    {
+        _tag = tag;
+        await SearchAsync();
+    }
+
+    private async Task LoadMonthAsync() => _days = await Journal.DaysWithEntriesAsync(_userId, _month.Year, _month.Month);
+
+    private async Task MoveMonthAsync(int delta)
+    {
+        _month = _month.AddMonths(delta);
+        await LoadMonthAsync();
+    }
+
+    private static string Preview(string body, int length)
+    {
+        var flat = body.ReplaceLineEndings(" ").Trim();
+        return flat.Length <= length ? flat : flat[..length].TrimEnd() + "…";
+    }
+}

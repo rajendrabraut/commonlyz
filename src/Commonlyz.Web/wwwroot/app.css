@@ -237,3 +237,39 @@ tfoot td { font-weight: 600; border-bottom: 0; }
 .timer-clock { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .day + .day { margin-top: 18px; }
 .day-head { padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+
+/* ── LinkHub ───────────────────────────────────────── */
+.linkhub-profile { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.linkhub-profile h1 { font-size: 1.4rem; }
+.linkhub-profile p { margin: 0; max-width: 46ch; }
+.linkhub-avatar { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; border: 3px solid var(--lh-accent); }
+.linkhub-avatar.placeholder { display: grid; place-items: center; font-size: 2rem; font-weight: 700; color: #fff; background: var(--lh-accent); }
+.linkhub-links { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 440px; margin-top: 8px; }
+.linkhub-link { display: block; padding: 14px 18px; border-radius: 12px; border: 2px solid var(--lh-accent); color: var(--text); font-weight: 600; background: var(--surface); transition: background .15s, color .15s; }
+.linkhub-link:hover { background: var(--lh-accent); color: #fff; text-decoration: none; }
+.linkhub-link.draft { opacity: 0.5; border-style: dashed; }
+
+/* ── PixelSqueeze ──────────────────────────────────── */
+.dropzone { margin-top: 14px; border: 2px dashed var(--border); border-radius: var(--radius); padding: 32px 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--muted); cursor: pointer; position: relative; text-align: center; }
+.dropzone:hover { border-color: var(--accent); color: var(--accent); }
+.dropzone.busy { opacity: 0.7; pointer-events: none; }
+.dropzone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.thumb { width: 48px; height: 48px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); display: block; }
+.compare { margin: 0; text-align: center; }
+.compare img { max-width: 100%; max-height: 360px; border-radius: 8px; border: 1px solid var(--border); }
+.compare figcaption { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
+
+/* ── Journal ───────────────────────────────────────── */
+.journal-item { display: flex; flex-direction: column; color: var(--text); }
+.journal-item:hover { text-decoration: none; }
+.journal-item:hover strong { color: var(--accent); }
+.journal-date { color: var(--muted); font-size: 0.8rem; }
+.calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin: 12px 0 8px; text-align: center; }
+.cal-head { font-size: 0.72rem; color: var(--muted); }
+.cal-day { padding: 6px 0; border-radius: 6px; color: var(--text); font-size: 0.85rem; }
+.cal-day:hover { background: var(--surface-2); text-decoration: none; }
+.cal-day.has { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.cal-day.today { outline: 1px solid var(--accent); }
+
+/* ── SplitShare ────────────────────────────────────── */
+.split-parts { display: flex; flex-wrap: wrap; gap: 4px 18px; }

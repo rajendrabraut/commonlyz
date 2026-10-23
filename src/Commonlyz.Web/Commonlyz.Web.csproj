@@ -14,6 +14,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Commonlyz.Core\Commonlyz.Core.csproj" />
+    <ProjectReference Include="..\Modules\Commonlyz.Modules.SplitShare\Commonlyz.Modules.SplitShare.csproj" />
+    <ProjectReference Include="..\Modules\Commonlyz.Modules.DailyJournal\Commonlyz.Modules.DailyJournal.csproj" />
+    <ProjectReference Include="..\Modules\Commonlyz.Modules.PixelSqueeze\Commonlyz.Modules.PixelSqueeze.csproj" />
+    <ProjectReference Include="..\Modules\Commonlyz.Modules.LinkHub\Commonlyz.Modules.LinkHub.csproj" />
     <ProjectReference Include="..\Modules\Commonlyz.Modules.TimeTrack\Commonlyz.Modules.TimeTrack.csproj" />
     <ProjectReference Include="..\Modules\Commonlyz.Modules.ShortLink\Commonlyz.Modules.ShortLink.csproj" />
   </ItemGroup>

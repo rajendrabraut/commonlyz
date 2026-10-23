@@ -1,0 +1,94 @@
+@page "/journal/new"
+@page "/journal/{Id:int}"
+@inherits ModulePage
+@inject JournalService Journal
+@inject ICurrentUser CurrentUser
+@inject NavigationManager Navigation
+@inject TimeProvider Clock
+
+<PageHeader Title="@(Id is null ? "New entry" : "Edit entry")">
+    <a class="btn" href="journal"><Icon Name="left" /> Journal</a>
+</PageHeader>
+<Alerts Error="@Error" Success="@Success" />
+
+<div class="with-aside">
+    <section class="card">
+        <EditForm Model="_form" OnSubmit="SaveAsync" class="stack">
+            <div class="form-row">
+                <label class="field narrow"><span>Date</span><InputDate @bind-Value="_form.Date" /></label>
+                <label class="field wide"><span>Title (optional)</span><InputText @bind-Value="_form.Title" /></label>
+                <label class="field narrow"><span>Mood</span>
+                    <InputSelect @bind-Value="_form.Mood">
+                        <option value="">—</option>
+                        @foreach (var m in JournalService.Moods) { <option value="@m">@m</option> }
+                    </InputSelect>
+                </label>
+            </div>
+            <label class="field"><span>Entry (Markdown)</span><textarea rows="16" @bind="_form.Body" @bind:event="oninput"></textarea></label>
+            <label class="field"><span>Tags (comma separated)</span><InputText @bind-Value="_form.Tags" placeholder="travel, family" /></label>
+            <div class="row between">
+                <button class="btn primary" disabled="@Busy">Save</button>
+                @if (Id is not null) { <ConfirmButton Text="Delete entry" OnConfirm="DeleteAsync" /> }
+            </div>
+        </EditForm>
+    </section>
+    <aside>
+        <section class="card">
+            <h2>Preview</h2>
+            <div class="prose">@Markdown.Render(_form.Body)</div>
+        </section>
+    </aside>
+</div>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+    [SupplyParameterFromQuery(Name = "date")] public string? DateParam { get; set; }
+
+    private readonly Form _form = new();
+    private string _userId = "";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _userId = (await CurrentUser.GetAsync()).Id;
+        if (Id is { } id)
+        {
+            await RunAsync(async () =>
+            {
+                var entry = await Journal.GetAsync(_userId, id);
+                _form.Date = entry.EntryDate;
+                _form.Title = entry.Title;
+                _form.Body = entry.Body;
+                _form.Mood = entry.Mood ?? "";
+                _form.Tags = string.Join(", ", entry.Tags.Select(t => t.Name));
+            });
+        }
+        else
+        {
+            _form.Date = DateOnly.TryParse(DateParam, System.Globalization.CultureInfo.InvariantCulture, out var d)
+                ? d
+                : DateOnly.FromDateTime(Clock.GetUtcNow().UtcDateTime);
+        }
+    }
+
+    private Task SaveAsync() => RunAsync(async () =>
+    {
+        var id = await Journal.SaveAsync(_userId, Id, _form.Date ?? DateOnly.FromDateTime(Clock.GetUtcNow().UtcDateTime), _form.Title, _form.Body, _form.Mood, _form.Tags);
+        if (Id is null)
+            Navigation.NavigateTo($"journal/{id}");
+    }, "Saved.");
+
+    private Task DeleteAsync() => RunAsync(async () =>
+    {
+        await Journal.DeleteAsync(_userId, Id!.Value);
+        Navigation.NavigateTo("journal");
+    });
+
+    private sealed class Form
+    {
+        public DateOnly? Date { get; set; }
+        public string? Title { get; set; }
+        public string Body { get; set; } = "";
+        public string Mood { get; set; } = "";
+        public string? Tags { get; set; }
+    }
+}
