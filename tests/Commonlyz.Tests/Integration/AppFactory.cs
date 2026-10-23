@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.MsSql;
 
@@ -13,7 +14,21 @@ public sealed partial class AppFactory : WebApplicationFactory<Program>, IAsyncL
     public const string AdminEmail = "admin@test.local";
     public const string AdminPassword = "Admin123!";
 
-    private readonly MsSqlContainer _sql = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest").Build();
+    /// <summary>
+    /// Optional connection string to an already-running SQL Server (e.g. a local dev instance). When set, the
+    /// tests use a uniquely named throwaway database on it instead of starting a container.
+    /// </summary>
+    private static readonly string? ExternalSql = Environment.GetEnvironmentVariable("COMMONLYZ_TEST_SQL");
+
+    private readonly MsSqlContainer? _sql = ExternalSql is null
+        ? new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest").Build()
+        : null;
+
+    private readonly string? _externalDb = ExternalSql is null
+        ? null
+        : new SqlConnectionStringBuilder(ExternalSql) { InitialCatalog = $"commonlyz_test_{Guid.NewGuid():N}" }.ConnectionString;
+
+    private string ConnectionString => _externalDb ?? _sql!.GetConnectionString();
 
     /// <summary>Real SMTP server the app sends to. Tests deliver explicitly via <see cref="DeliverEmailsAsync"/>.</summary>
     public FakeSmtpServer Smtp { get; } = new();
@@ -21,7 +36,7 @@ public sealed partial class AppFactory : WebApplicationFactory<Program>, IAsyncL
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
-        builder.UseSetting("ConnectionStrings:Default", _sql.GetConnectionString());
+        builder.UseSetting("ConnectionStrings:Default", ConnectionString);
         builder.UseSetting("Database:MigrateOnStartup", "true");
         builder.UseSetting("Admin:Email", AdminEmail);
         builder.UseSetting("Admin:Password", AdminPassword);
@@ -45,15 +60,38 @@ public sealed partial class AppFactory : WebApplicationFactory<Program>, IAsyncL
 
     public async Task InitializeAsync()
     {
-        await _sql.StartAsync();
+        if (_sql is not null)
+        {
+            await _sql.StartAsync();
+        }
+
         _ = Services;   // force host start: runs every module's migrations and seeds the admin
     }
 
     async Task IAsyncLifetime.DisposeAsync()
     {
         await DisposeAsync();
-        await _sql.DisposeAsync();
+        if (_sql is not null)
+        {
+            await _sql.DisposeAsync();
+        }
+        else
+        {
+            await DropExternalDatabaseAsync();
+        }
+
         await Smtp.DisposeAsync();
+    }
+
+    private async Task DropExternalDatabaseAsync()
+    {
+        var name = new SqlConnectionStringBuilder(_externalDb).InitialCatalog;
+        SqlConnection.ClearAllPools();
+        await using var connection = new SqlConnection(new SqlConnectionStringBuilder(_externalDb) { InitialCatalog = "master" }.ConnectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"IF DB_ID(N'{name}') IS NOT NULL BEGIN ALTER DATABASE [{name}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{name}]; END";
+        await command.ExecuteNonQueryAsync();
     }
 
     public T Get<T>() where T : notnull => Services.GetRequiredService<T>();

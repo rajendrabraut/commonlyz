@@ -44,6 +44,13 @@ Development sign-in: `admin@commonlyz.local` / `Admin123!` (from `appsettings.De
 dotnet test     # 130 tests; integration tests start SQL Server via Testcontainers (Docker required)
 ```
 
+To reuse an already-running SQL Server instead of starting a container, set `COMMONLYZ_TEST_SQL` to a
+connection string for it (no database name needed). The tests create a throwaway `commonlyz_test_<guid>`
+database on it and drop it afterwards:
+```bash
+COMMONLYZ_TEST_SQL="Server=127.0.0.1,1433;User ID=sa;Password=...;TrustServerCertificate=True" dotnet test
+```
+
 ## Architecture
 
 ```
