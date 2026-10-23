@@ -1,0 +1,162 @@
+@page "/statusboard"
+@inherits ModulePage
+@inject StatusService Status
+
+<PageHeader Title="StatusBoard" Subtitle="@(_page is null ? "" : StatusService.Headline(_page.Overall))">
+    <a class="btn" href="status" target="_blank"><Icon Name="external" /> Public page</a>
+</PageHeader>
+<Alerts Error="@Error" Success="@Success" />
+<div class="alert warning"><Icon Name="alert" /> Tip: host the public page somewhere other than the services it reports on, so it stays up when they don't.</div>
+
+@if (_page is not null)
+{
+    <div class="with-aside">
+        <div>
+            @foreach (var incident in _page.Active)
+            {
+                <IncidentCard Incident="incident">
+                    <EditForm Model="_updates[incident.Id]" OnSubmit="() => PostUpdateAsync(incident.Id)" class="form-row" style="margin-top:10px">
+                        <label class="field narrow"><span>Status</span>
+                            <select @bind="_updates[incident.Id].Status">
+                                @foreach (var s in Enum.GetValues<IncidentStatus>()) { <option value="@s">@s</option> }
+                            </select>
+                        </label>
+                        <label class="field wide"><span>Update</span><input @bind="_updates[incident.Id].Message" /></label>
+                        <button class="btn primary">Post update</button>
+                    </EditForm>
+                </IncidentCard>
+            }
+
+            <section class="card">
+                <h2>Components</h2>
+                @if (_page.Components.Count == 0) { <EmptyState Message="Add the services you want to report on (API, Website, Email…)." IconName="activity" /> }
+                <table>
+                    <tbody>
+                        @foreach (var c in _page.Components)
+                        {
+                            <tr>
+                                <td><strong>@c.Name</strong> <span class="muted small">@c.Description</span></td>
+                                <td>
+                                    <select value="@c.Status" @onchange="e => SetStatusAsync(c.Id, e.Value)">
+                                        @foreach (var s in Enum.GetValues<ComponentStatus>()) { <option value="@s">@StatusService.Label(s)</option> }
+                                    </select>
+                                </td>
+                                <td class="actions"><ConfirmButton IconOnly OnConfirm="() => DeleteComponentAsync(c.Id)" /></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                <EditForm Model="_component" OnSubmit="AddComponentAsync" class="form-row" style="margin-top:12px">
+                    <label class="field"><span>Name</span><InputText @bind-Value="_component.Name" placeholder="API" /></label>
+                    <label class="field wide"><span>Description</span><InputText @bind-Value="_component.Description" /></label>
+                    <button class="btn">Add component</button>
+                </EditForm>
+            </section>
+        </div>
+
+        <aside>
+            <section class="card">
+                <h2>Report an incident</h2>
+                <EditForm Model="_incident" OnSubmit="OpenIncidentAsync" class="stack">
+                    <label class="field"><span>Title</span><InputText @bind-Value="_incident.Title" placeholder="Elevated API errors" /></label>
+                    <div class="row">
+                        <label class="field grow"><span>Impact</span>
+                            <InputSelect @bind-Value="_incident.Impact">
+                                @foreach (var i in Enum.GetValues<IncidentImpact>()) { <option value="@i">@i</option> }
+                            </InputSelect>
+                        </label>
+                        <label class="field grow"><span>Set components to</span>
+                            <InputSelect @bind-Value="_incident.ComponentStatus">
+                                @foreach (var s in Enum.GetValues<ComponentStatus>().Skip(1)) { <option value="@s">@StatusService.Label(s)</option> }
+                            </InputSelect>
+                        </label>
+                    </div>
+                    <span class="field"><span>Affected</span></span>
+                    @foreach (var c in _page.Components)
+                    {
+                        <label class="check small"><input type="checkbox" checked="@_incident.Components.Contains(c.Id)" @onchange="e => Toggle(c.Id, (bool)e.Value!)" /> @c.Name</label>
+                    }
+                    <label class="field"><span>First update</span><InputTextArea @bind-Value="_incident.Message" rows="3" placeholder="We're investigating…" /></label>
+                    <button class="btn primary" disabled="@Busy">Open incident</button>
+                </EditForm>
+            </section>
+        </aside>
+    </div>
+}
+
+@code {
+    private StatusPage? _page;
+    private readonly Dictionary<int, UpdateForm> _updates = [];
+    private ComponentForm _component = new();
+    private IncidentForm _incident = new();
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _page = await Status.GetPageAsync();
+        foreach (var i in _page.Active)
+            _updates.TryAdd(i.Id, new UpdateForm { Status = i.Status });
+    }
+
+    private void Toggle(int id, bool on)
+    {
+        if (on) _incident.Components.Add(id);
+        else _incident.Components.Remove(id);
+    }
+
+    private Task SetStatusAsync(int id, object? value) => RunAsync(async () =>
+    {
+        await Status.SetComponentStatusAsync(id, Enum.Parse<ComponentStatus>((string)value!));
+        await LoadAsync();
+    });
+
+    private Task AddComponentAsync() => RunAsync(async () =>
+    {
+        await Status.SaveComponentAsync(null, _component.Name, _component.Description);
+        _component = new();
+        await LoadAsync();
+    });
+
+    private Task DeleteComponentAsync(int id) => RunAsync(async () =>
+    {
+        await Status.DeleteComponentAsync(id);
+        await LoadAsync();
+    });
+
+    private Task OpenIncidentAsync() => RunAsync(async () =>
+    {
+        await Status.OpenIncidentAsync(_incident.Title, _incident.Impact, _incident.Components, _incident.ComponentStatus, _incident.Message);
+        _incident = new();
+        await LoadAsync();
+    }, "Incident opened.");
+
+    private Task PostUpdateAsync(int incidentId) => RunAsync(async () =>
+    {
+        var form = _updates[incidentId];
+        await Status.PostUpdateAsync(incidentId, form.Status, form.Message);
+        _updates.Remove(incidentId);
+        await LoadAsync();
+    }, "Update posted.");
+
+    private sealed class UpdateForm
+    {
+        public IncidentStatus Status { get; set; }
+        public string Message { get; set; } = "";
+    }
+
+    private sealed class ComponentForm
+    {
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+    }
+
+    private sealed class IncidentForm
+    {
+        public string Title { get; set; } = "";
+        public IncidentImpact Impact { get; set; } = IncidentImpact.Minor;
+        public ComponentStatus ComponentStatus { get; set; } = ComponentStatus.Degraded;
+        public HashSet<int> Components { get; set; } = [];
+        public string Message { get; set; } = "";
+    }
+}

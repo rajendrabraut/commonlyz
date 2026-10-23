@@ -1,0 +1,69 @@
+@page "/wiki/{Id:int}/edit"
+@inherits ModulePage
+@inject WikiService Wiki
+@inject ICurrentUser CurrentUser
+@inject NavigationManager Navigation
+
+<PageHeader Title="@($"Edit: {_form.Title}")">
+    <a class="btn" href="@($"wiki/{Id}")">View</a>
+    <button class="btn primary" @onclick="SaveAsync" disabled="@Busy">Save</button>
+</PageHeader>
+<Alerts Error="@Error" Success="@Success" />
+
+<div class="grid-2">
+    <section class="card stack">
+        <div class="form-row">
+            <label class="field wide"><span>Title</span><input @bind="_form.Title" /></label>
+            <label class="field"><span>Parent page</span>
+                <select @bind="_form.ParentId">
+                    <option value="">(top level)</option>
+                    @foreach (var node in _tree.Where(n => n.Id != Id)) { <option value="@node.Id">@node.Title</option> }
+                </select>
+            </label>
+        </div>
+        <label class="field"><span>Content (Markdown)</span><textarea rows="22" @bind="_form.Body" @bind:event="oninput"></textarea></label>
+        <div class="row between">
+            <button class="btn primary" @onclick="SaveAsync" disabled="@Busy">Save</button>
+            <ConfirmButton Text="Delete page" ConfirmText="Delete (sub-pages move up)" OnConfirm="DeleteAsync" />
+        </div>
+    </section>
+    <section class="card">
+        <h2>Preview</h2>
+        <div class="prose">@Markdown.Render(_form.Body)</div>
+    </section>
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private IReadOnlyList<TreeNode> _tree = [];
+    private readonly EditModel _form = new();
+    private byte[] _rowVersion = [];
+
+    protected override Task OnParametersSetAsync() => RunAsync(async () =>
+    {
+        _tree = await Wiki.TreeAsync();
+        var page = await Wiki.GetAsync(Id);
+        (_form.Title, _form.Body, _form.ParentId, _rowVersion) = (page.Title, page.Body, page.ParentId?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "", page.RowVersion);
+    });
+
+    private Task SaveAsync() => RunAsync(async () =>
+    {
+        int? parent = int.TryParse(_form.ParentId, out var p) ? p : null;
+        _rowVersion = await Wiki.SaveAsync(Id, _form.Title, _form.Body, parent, _rowVersion, (await CurrentUser.GetAsync()).DisplayName);
+        _tree = await Wiki.TreeAsync();
+    }, "Saved.");
+
+    private Task DeleteAsync() => RunAsync(async () =>
+    {
+        await Wiki.DeleteAsync(Id);
+        Navigation.NavigateTo("wiki");
+    });
+
+    private sealed class EditModel
+    {
+        public string Title { get; set; } = "";
+        public string Body { get; set; } = "";
+        public string ParentId { get; set; } = "";
+    }
+}

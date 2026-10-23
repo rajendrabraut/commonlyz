@@ -1,0 +1,46 @@
+@page "/status"
+@attribute [ExcludeFromInteractiveRouting]
+@inject StatusService Status
+
+@* Static server-rendered HTML: fast, cacheable, no websocket. Refreshes itself every minute. *@
+<PageTitle>System status</PageTitle>
+<HeadContent><meta http-equiv="refresh" content="60" /></HeadContent>
+
+@if (_page is not null)
+{
+    <div class="status-banner status-@_page.Overall.ToString().ToLowerInvariant()">
+        <h1>@StatusService.Headline(_page.Overall)</h1>
+    </div>
+
+    @foreach (var incident in _page.Active)
+    {
+        <IncidentCard Incident="incident" />
+    }
+
+    <section class="card" style="margin-top:16px">
+        @if (_page.Components.Count == 0) { <p class="muted">No components configured.</p> }
+        <ul class="list">
+            @foreach (var c in _page.Components)
+            {
+                <li class="row between">
+                    <span><strong>@c.Name</strong>@if (c.Description is not null) { <span class="muted small"> · @c.Description</span> }</span>
+                    <span class="status-pill status-@c.Status.ToString().ToLowerInvariant()">@StatusService.Label(c.Status)</span>
+                </li>
+            }
+        </ul>
+    </section>
+
+    <h2 class="section-title">Past incidents (14 days)</h2>
+    @if (_page.Recent.Count == 0) { <p class="muted">No incidents reported.</p> }
+    @foreach (var incident in _page.Recent)
+    {
+        <IncidentCard Incident="incident" />
+    }
+    <p class="muted small center" style="margin-top:20px">Machine-readable: <a href="status.json">/status.json</a></p>
+}
+
+@code {
+    private StatusPage? _page;
+
+    protected override async Task OnInitializedAsync() => _page = await Status.GetPageAsync();
+}

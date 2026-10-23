@@ -1,0 +1,60 @@
+<div class="chat-msg">
+    <div class="row" style="gap:6px">
+        <span class="chat-avatar">@Initial</span>
+        <strong>@Message.AuthorName</strong>
+        <span class="muted small">@Message.CreatedUtc.ToString("MMM d, HH:mm", System.Globalization.CultureInfo.InvariantCulture) UTC</span>
+        @if (Message.EditedUtc is not null && Message.DeletedUtc is null) { <span class="muted small">(edited)</span> }
+        <span class="grow"></span>
+        @if (IsMine && Message.DeletedUtc is null && !_editing)
+        {
+            <button class="btn sm ghost" title="Edit" @onclick="BeginEdit"><Icon Name="edit" Size="14" /></button>
+            <ConfirmButton IconOnly OnConfirm="OnDelete" />
+        }
+    </div>
+    @if (Message.DeletedUtc is not null)
+    {
+        <div class="muted small"><em>message deleted</em></div>
+    }
+    else if (_editing)
+    {
+        <div class="row">
+            <input class="grow" @bind="_draft" />
+            <button class="btn sm primary" @onclick="SaveAsync">Save</button>
+            <button class="btn sm ghost" @onclick="() => _editing = false">Cancel</button>
+        </div>
+    }
+    else
+    {
+        <div class="chat-body">@Message.Body</div>
+    }
+    @if (OnOpenThread.HasDelegate)
+    {
+        <button class="btn sm ghost chat-replies" @onclick="OnOpenThread">@(ReplyCount == 0 ? "Reply" : $"{ReplyCount} {(ReplyCount == 1 ? "reply" : "replies")}")</button>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Message Message { get; set; } = default!;
+    [Parameter] public int ReplyCount { get; set; }
+    [Parameter] public bool IsMine { get; set; }
+    [Parameter] public EventCallback OnOpenThread { get; set; }
+    [Parameter] public EventCallback<string> OnEdit { get; set; }
+    [Parameter] public EventCallback OnDelete { get; set; }
+
+    private bool _editing;
+    private string _draft = "";
+
+    private string Initial => Message.AuthorName.Length > 0 ? char.ToUpperInvariant(Message.AuthorName[0]).ToString() : "?";
+
+    private void BeginEdit()
+    {
+        _draft = Message.Body;
+        _editing = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        await OnEdit.InvokeAsync(_draft);
+        _editing = false;
+    }
+}

@@ -1,0 +1,260 @@
+@page "/taskboard/{Id:int}"
+@inherits ModulePage
+@inject TaskBoardService Boards
+@inject NavigationManager Navigation
+@inject TimeProvider Clock
+
+@if (_view is null)
+{
+    <Alerts Error="@Error" />
+}
+else
+{
+    <PageHeader Title="@_view.Board.Name">
+        <a class="btn" href="taskboard"><Icon Name="left" /> Boards</a>
+        <ConfirmButton Text="Delete board" ConfirmText="Delete board and all cards" OnConfirm="DeleteBoardAsync" />
+    </PageHeader>
+    <Alerts Error="@Error" Success="@Success" />
+
+    @* Drag & drop uses native HTML5 drag events wired to C# handlers — no JavaScript. *@
+    <div class="kanban">
+        @foreach (var (column, cards) in _view.Columns)
+        {
+            <div class="kanban-col @(_dropColumn == column.Id ? "drop" : null)"
+                 @ondragover="() => _dropColumn = column.Id" @ondragover:preventDefault
+                 @ondragleave="() => _dropColumn = null"
+                 @ondrop="() => DropAsync(column.Id, null)">
+                <div class="kanban-col-head">
+                    <strong>@column.Name</strong> <span class="muted small">@cards.Count</span>
+                    <span class="btn-group">
+                        <button class="btn sm ghost" title="Move left" @onclick="() => MoveColumnAsync(column.Id, -1)"><Icon Name="left" Size="14" /></button>
+                        <button class="btn sm ghost" title="Move right" @onclick="() => MoveColumnAsync(column.Id, 1)"><Icon Name="right" Size="14" /></button>
+                        @if (cards.Count == 0) { <ConfirmButton IconOnly OnConfirm="() => DeleteColumnAsync(column.Id)" /> }
+                    </span>
+                </div>
+
+                @foreach (var card in cards)
+                {
+                    var done = card.Checklist.Count(i => i.IsDone);
+                    <div class="kanban-card @(_dragCard == card.Id ? "dragging" : null)" draggable="true"
+                         @ondragstart="() => _dragCard = card.Id"
+                         @ondragend="() => { _dragCard = null; _dropColumn = null; }"
+                         @ondrop="() => DropAsync(column.Id, card.Id)" @ondrop:stopPropagation
+                         @onclick="() => OpenAsync(card.Id)">
+                        @if (card.LabelColor is not null) { <span class="kanban-label" style="background:@card.LabelColor"></span> }
+                        <span>@card.Title</span>
+                        <div class="row small muted" style="gap:8px">
+                            @if (card.DueDate is { } due)
+                            {
+                                <span class="badge @(due < _today ? "bad" : due <= _today.AddDays(2) ? "warn" : null)"><Icon Name="calendar" Size="12" /> @due.ToString("d MMM", System.Globalization.CultureInfo.InvariantCulture)</span>
+                            }
+                            @if (card.Checklist.Count > 0) { <span class="badge @(done == card.Checklist.Count ? "ok" : null)"><Icon Name="check" Size="12" /> @done/@card.Checklist.Count</span> }
+                            @if (card.Description is not null) { <Icon Name="file" Size="12" /> }
+                        </div>
+                    </div>
+                }
+
+                <EditForm Model="_newCards[column.Id]" OnSubmit="() => AddCardAsync(column.Id)">
+                    <input class="kanban-add" placeholder="+ Add a card" @bind="_newCards[column.Id].Title" />
+                </EditForm>
+            </div>
+        }
+
+        <div class="kanban-col kanban-new">
+            <EditForm Model="_newColumn" OnSubmit="AddColumnAsync">
+                <input placeholder="+ Add a column" @bind="_newColumn.Title" />
+            </EditForm>
+        </div>
+    </div>
+
+    @if (_card is not null)
+    {
+        <div class="drawer-backdrop" @onclick="() => _card = null"></div>
+        <aside class="drawer">
+            <div class="row between"><h2>Card</h2><button class="btn sm ghost" @onclick="() => _card = null"><Icon Name="x" /></button></div>
+            <EditForm Model="_cardForm" OnSubmit="SaveCardAsync" class="stack">
+                <label class="field"><span>Title</span><InputText @bind-Value="_cardForm.Title" /></label>
+                <label class="field"><span>Column</span>
+                    <select value="@_card.ColumnId" @onchange="e => MoveToColumnAsync(int.Parse((string)e.Value!, System.Globalization.CultureInfo.InvariantCulture))">
+                        @foreach (var (column, _) in _view.Columns) { <option value="@column.Id">@column.Name</option> }
+                    </select>
+                </label>
+                <div class="row">
+                    <label class="field grow"><span>Due</span><InputDate @bind-Value="_cardForm.Due" /></label>
+                    <label class="field"><span>Label</span>
+                        <InputSelect @bind-Value="_cardForm.Label">
+                            <option value="">None</option>
+                            @foreach (var (name, color) in Labels) { <option value="@color">@name</option> }
+                        </InputSelect>
+                    </label>
+                </div>
+                <label class="field"><span>Description (Markdown)</span><InputTextArea @bind-Value="_cardForm.Description" rows="6" /></label>
+                <button class="btn primary">Save</button>
+            </EditForm>
+
+            <h3 style="margin-top:18px">Checklist</h3>
+            <ul class="list">
+                @foreach (var item in _card.Checklist)
+                {
+                    <li class="row">
+                        <label class="check grow" style="padding:0"><input type="checkbox" checked="@item.IsDone" @onchange="() => ToggleItemAsync(item.Id)" />
+                            <span style="@(item.IsDone ? "text-decoration:line-through;opacity:.6" : null)">@item.Text</span></label>
+                        <button class="btn sm ghost" @onclick="() => DeleteItemAsync(item.Id)"><Icon Name="x" Size="14" /></button>
+                    </li>
+                }
+            </ul>
+            <EditForm Model="_newItem" OnSubmit="AddItemAsync" class="row">
+                <input class="grow" placeholder="Add an item" @bind="_newItem.Title" />
+                <button class="btn sm"><Icon Name="plus" Size="14" /></button>
+            </EditForm>
+
+            <hr />
+            <div class="row between">
+                <button class="btn" @onclick="ArchiveAsync">Archive</button>
+                <ConfirmButton Text="Delete card" OnConfirm="DeleteCardAsync" />
+            </div>
+        </aside>
+    }
+}
+
+@code {
+    private static readonly (string Name, string Color)[] Labels =
+        [("Red", "#ef4444"), ("Orange", "#f97316"), ("Yellow", "#eab308"), ("Green", "#22c55e"), ("Blue", "#3b82f6"), ("Purple", "#a855f7")];
+
+    [Parameter] public int Id { get; set; }
+
+    private BoardView? _view;
+    private readonly Dictionary<int, TitleForm> _newCards = [];
+    private readonly TitleForm _newColumn = new();
+    private readonly TitleForm _newItem = new();
+    private int? _dragCard;
+    private int? _dropColumn;
+    private Card? _card;
+    private readonly CardForm _cardForm = new();
+    private DateOnly _today;
+
+    protected override Task OnParametersSetAsync()
+    {
+        _today = DateOnly.FromDateTime(Clock.GetUtcNow().UtcDateTime);
+        return RunAsync(LoadAsync);
+    }
+
+    private async Task LoadAsync()
+    {
+        _view = await Boards.GetBoardAsync(Id);
+        foreach (var (column, _) in _view.Columns)
+            _newCards.TryAdd(column.Id, new TitleForm());
+    }
+
+    private Task DropAsync(int columnId, int? beforeCardId) => RunAsync(async () =>
+    {
+        _dropColumn = null;
+        if (_dragCard is not { } cardId)
+            return;
+        _dragCard = null;
+        await Boards.MoveCardAsync(cardId, columnId, beforeCardId);
+        await LoadAsync();
+    });
+
+    private Task AddCardAsync(int columnId) => RunAsync(async () =>
+    {
+        await Boards.AddCardAsync(columnId, _newCards[columnId].Title);
+        _newCards[columnId].Title = "";
+        await LoadAsync();
+    });
+
+    private Task AddColumnAsync() => RunAsync(async () =>
+    {
+        await Boards.AddColumnAsync(Id, _newColumn.Title);
+        _newColumn.Title = "";
+        await LoadAsync();
+    });
+
+    private Task MoveColumnAsync(int columnId, int direction) => RunAsync(async () =>
+    {
+        await Boards.MoveColumnAsync(columnId, direction);
+        await LoadAsync();
+    });
+
+    private Task DeleteColumnAsync(int columnId) => RunAsync(async () =>
+    {
+        await Boards.DeleteColumnAsync(columnId);
+        await LoadAsync();
+    });
+
+    private Task DeleteBoardAsync() => RunAsync(async () =>
+    {
+        await Boards.DeleteBoardAsync(Id);
+        Navigation.NavigateTo("taskboard");
+    });
+
+    private async Task OpenAsync(int cardId)
+    {
+        _card = await Boards.GetCardAsync(cardId);
+        (_cardForm.Title, _cardForm.Description, _cardForm.Due, _cardForm.Label) = (_card.Title, _card.Description, _card.DueDate, _card.LabelColor ?? "");
+    }
+
+    private Task SaveCardAsync() => RunAsync(async () =>
+    {
+        await Boards.UpdateCardAsync(_card!.Id, _cardForm.Title, _cardForm.Description, _cardForm.Due, Text.NullIfBlank(_cardForm.Label));
+        await RefreshCardAsync();
+    }, "Card saved.");
+
+    private Task MoveToColumnAsync(int columnId) => RunAsync(async () =>
+    {
+        await Boards.MoveCardAsync(_card!.Id, columnId, null);
+        await RefreshCardAsync();
+    });
+
+    private Task AddItemAsync() => RunAsync(async () =>
+    {
+        await Boards.AddChecklistItemAsync(_card!.Id, _newItem.Title);
+        _newItem.Title = "";
+        await RefreshCardAsync();
+    });
+
+    private Task ToggleItemAsync(int itemId) => RunAsync(async () =>
+    {
+        await Boards.ToggleChecklistItemAsync(itemId);
+        await RefreshCardAsync();
+    });
+
+    private Task DeleteItemAsync(int itemId) => RunAsync(async () =>
+    {
+        await Boards.DeleteChecklistItemAsync(itemId);
+        await RefreshCardAsync();
+    });
+
+    private Task ArchiveAsync() => RunAsync(async () =>
+    {
+        await Boards.ArchiveCardAsync(_card!.Id);
+        _card = null;
+        await LoadAsync();
+    }, "Card archived.");
+
+    private Task DeleteCardAsync() => RunAsync(async () =>
+    {
+        await Boards.DeleteCardAsync(_card!.Id);
+        _card = null;
+        await LoadAsync();
+    });
+
+    private async Task RefreshCardAsync()
+    {
+        await LoadAsync();
+        _card = await Boards.GetCardAsync(_card!.Id);
+    }
+
+    private sealed class TitleForm
+    {
+        public string Title { get; set; } = "";
+    }
+
+    private sealed class CardForm
+    {
+        public string Title { get; set; } = "";
+        public string? Description { get; set; }
+        public DateOnly? Due { get; set; }
+        public string Label { get; set; } = "";
+    }
+}

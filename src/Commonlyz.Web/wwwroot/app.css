@@ -290,3 +290,61 @@ tfoot td { font-weight: 600; border-bottom: 0; }
 /* ── ClientCollect ─────────────────────────────────── */
 .answer { margin: 8px 0; padding: 10px 14px; background: var(--surface-2); border-radius: 8px; white-space: pre-wrap; }
 .warning-text { color: var(--warning); }
+
+/* ── TaskBoard ─────────────────────────────────────── */
+.kanban { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 12px; align-items: flex-start; }
+.kanban-col { flex: 0 0 280px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; display: flex; flex-direction: column; gap: 8px; min-height: 120px; }
+.kanban-col.drop { border-color: var(--accent); background: var(--accent-soft); }
+.kanban-col-head { display: flex; align-items: center; gap: 6px; }
+.kanban-col-head .btn-group { margin-left: auto; }
+.kanban-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px; cursor: grab; display: flex; flex-direction: column; gap: 6px; }
+.kanban-card:hover { border-color: var(--accent); }
+.kanban-card.dragging { opacity: 0.4; }
+.kanban-label { display: block; width: 36px; height: 6px; border-radius: 999px; }
+.kanban-add, .kanban-new input { background: transparent; border-style: dashed; }
+.kanban-new { background: transparent; border-style: dashed; min-height: 0; }
+.drawer-backdrop { position: fixed; inset: 0; background: rgb(0 0 0 / 0.25); z-index: 20; }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 100%); background: var(--surface); border-left: 1px solid var(--border); padding: 20px; overflow-y: auto; z-index: 21; box-shadow: -8px 0 24px rgb(0 0 0 / 0.12); }
+
+/* ── Chat ──────────────────────────────────────────── */
+.chat { display: grid; grid-template-columns: 220px minmax(0, 1fr) auto; gap: 14px; height: calc(100vh - 80px); }
+.chat > .card { display: flex; flex-direction: column; min-height: 0; }
+.chat-channels { gap: 2px; overflow-y: auto; }
+.chat-channel { padding: 5px 8px; border-radius: 6px; color: var(--text); display: flex; align-items: center; gap: 6px; }
+.chat-channel:hover { background: var(--surface-2); text-decoration: none; }
+.chat-channel.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.chat-head { border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 8px; }
+.chat-head h2 { margin: 0; }
+.chat-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.chat-msg { display: block; padding: 6px 8px; border-radius: 8px; color: var(--text); }
+.chat-msg:hover { background: var(--surface-2); text-decoration: none; }
+.chat-body { white-space: pre-wrap; overflow-wrap: anywhere; padding-left: 30px; }
+.chat-avatar { width: 24px; height: 24px; border-radius: 6px; background: var(--accent); color: #fff; display: inline-grid; place-items: center; font-size: 0.75rem; font-weight: 700; }
+.chat-replies { margin-left: 22px; color: var(--accent); }
+.chat-composer { display: flex; gap: 8px; margin-top: 10px; }
+.chat-thread { width: 320px; overflow-y: auto; }
+@media (max-width: 1000px) { .chat { grid-template-columns: 1fr; height: auto; } .chat-thread { width: auto; } .chat-messages { max-height: 60vh; } }
+
+/* ── StatusBoard ───────────────────────────────────── */
+.status-banner { border-radius: var(--radius); padding: 22px; color: #fff; background: #16a34a; }
+.status-banner h1 { font-size: 1.3rem; }
+.status-banner.status-maintenance { background: #2563eb; }
+.status-banner.status-degraded { background: #ca8a04; }
+.status-banner.status-partialoutage { background: #ea580c; }
+.status-banner.status-majoroutage { background: #dc2626; }
+.status-pill { font-size: 0.85rem; font-weight: 600; color: #16a34a; }
+.status-pill.status-maintenance { color: #2563eb; }
+.status-pill.status-degraded { color: #ca8a04; }
+.status-pill.status-partialoutage { color: #ea580c; }
+.status-pill.status-majoroutage { color: #dc2626; }
+
+/* ── Budget ────────────────────────────────────────── */
+.rta { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 16px; border-radius: var(--radius); background: var(--success-soft); color: var(--success); margin-bottom: 16px; text-align: center; }
+.rta.zero { background: var(--surface-2); color: var(--muted); }
+.rta.over { background: var(--danger-soft); color: var(--danger); }
+.budget-group td { background: var(--surface-2); font-weight: 600; font-size: 0.85rem; }
+.money-input { width: 110px; text-align: right; padding: 4px 8px; font-variant-numeric: tabular-nums; }
+.pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pill.pos { background: var(--success-soft); color: var(--success); }
+.pill.zero { background: var(--surface-2); color: var(--muted); }
+.pill.neg { background: var(--danger-soft); color: var(--danger); }

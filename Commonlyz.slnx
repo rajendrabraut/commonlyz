@@ -4,6 +4,7 @@
     <Project Path="src/Commonlyz.Web/Commonlyz.Web.csproj" />
   </Folder>
   <Folder Name="/src/Modules/">
+    <Project Path="src/Modules/Commonlyz.Modules.BudgetPlan/Commonlyz.Modules.BudgetPlan.csproj" />
     <Project Path="src/Modules/Commonlyz.Modules.ClientCollect/Commonlyz.Modules.ClientCollect.csproj" />
     <Project Path="src/Modules/Commonlyz.Modules.DailyJournal/Commonlyz.Modules.DailyJournal.csproj" />
     <Project Path="src/Modules/Commonlyz.Modules.FormFlow/Commonlyz.Modules.FormFlow.csproj" />
@@ -12,7 +13,11 @@
     <Project Path="src/Modules/Commonlyz.Modules.ShortLink/Commonlyz.Modules.ShortLink.csproj" />
     <Project Path="src/Modules/Commonlyz.Modules.SlotBook/Commonlyz.Modules.SlotBook.csproj" />
     <Project Path="src/Modules/Commonlyz.Modules.SplitShare/Commonlyz.Modules.SplitShare.csproj" />
+    <Project Path="src/Modules/Commonlyz.Modules.StatusBoard/Commonlyz.Modules.StatusBoard.csproj" />
     <Project Path="src/Modules/Commonlyz.Modules.StockRoom/Commonlyz.Modules.StockRoom.csproj" />
+    <Project Path="src/Modules/Commonlyz.Modules.TaskBoard/Commonlyz.Modules.TaskBoard.csproj" />
+    <Project Path="src/Modules/Commonlyz.Modules.TeamChat/Commonlyz.Modules.TeamChat.csproj" />
+    <Project Path="src/Modules/Commonlyz.Modules.TeamWiki/Commonlyz.Modules.TeamWiki.csproj" />
     <Project Path="src/Modules/Commonlyz.Modules.TimeTrack/Commonlyz.Modules.TimeTrack.csproj" />
   </Folder>
 </Solution>

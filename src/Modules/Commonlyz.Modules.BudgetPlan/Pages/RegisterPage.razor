@@ -1,0 +1,153 @@
+@page "/budget/accounts/{Id:int}"
+@inherits ModulePage
+@inject BudgetService Budget
+@inject TimeProvider Clock
+
+@if (_account is null)
+{
+    <Alerts Error="@Error" />
+}
+else
+{
+    <PageHeader Title="@_account.Name" Subtitle="@($"{_account.Type} · balance {Format.Money(_txns.Sum(t => t.AmountMinor))} · cleared {Format.Money(_txns.Where(t => t.Cleared).Sum(t => t.AmountMinor))}")">
+        <a class="btn" href="budget/accounts"><Icon Name="left" /> Accounts</a>
+    </PageHeader>
+    <Alerts Error="@Error" Success="@Success" />
+
+    <section class="card">
+        <div class="btn-group" style="margin-bottom:12px">
+            <button class="btn sm @(_mode == "out" ? "active" : null)" @onclick='() => _mode = "out"'>Spend</button>
+            <button class="btn sm @(_mode == "in" ? "active" : null)" @onclick='() => _mode = "in"'>Income</button>
+            <button class="btn sm @(_mode == "transfer" ? "active" : null)" @onclick='() => _mode = "transfer"'>Transfer</button>
+        </div>
+        <EditForm Model="_form" OnSubmit="AddAsync" class="form-row">
+            <label class="field narrow"><span>Date</span><InputDate @bind-Value="_form.Date" /></label>
+            @if (_mode == "transfer")
+            {
+                <label class="field"><span>To account</span>
+                    <InputSelect @bind-Value="_form.ToAccountId">
+                        <option value="0">Choose…</option>
+                        @foreach (var a in _otherAccounts) { <option value="@a.Account.Id">@a.Account.Name</option> }
+                    </InputSelect>
+                </label>
+            }
+            else
+            {
+                <label class="field"><span>Payee</span><InputText @bind-Value="_form.Payee" /></label>
+                @if (_mode == "out")
+                {
+                    <label class="field"><span>Category</span>
+                        <InputSelect @bind-Value="_form.CategoryId">
+                            <option value="0">Choose…</option>
+                            @foreach (var g in _groups)
+                            {
+                                <optgroup label="@g.Name">
+                                    @foreach (var c in g.Categories.Where(c => !c.IsHidden)) { <option value="@c.Id">@c.Name</option> }
+                                </optgroup>
+                            }
+                        </InputSelect>
+                    </label>
+                }
+            }
+            <label class="field narrow"><span>Amount</span><InputText @bind-Value="_form.Amount" inputmode="decimal" placeholder="0.00" /></label>
+            <label class="field"><span>Memo</span><InputText @bind-Value="_form.Memo" /></label>
+            <button class="btn primary" disabled="@Busy">Add</button>
+        </EditForm>
+        @if (_mode == "in") { <p class="muted small">Income goes to “Ready to assign” on the budget page.</p> }
+    </section>
+
+    <section class="card">
+        @if (_txns.Count == 0) { <EmptyState Message="No transactions yet." IconName="wallet" /> }
+        else
+        {
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Date</th><th>Payee</th><th>Category</th><th>Memo</th><th class="num">Amount</th><th title="Cleared">C</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var t in _txns)
+                        {
+                            <tr>
+                                <td class="nowrap">@Format.Date(t.Date)</td>
+                                <td>@t.Payee</td>
+                                <td class="muted">@(t.TransferId is not null ? "Transfer" : t.CategoryId is { } cid ? CategoryName(cid) : "Ready to assign")</td>
+                                <td class="muted small">@t.Memo</td>
+                                <td class="num @(t.AmountMinor < 0 ? "danger-text" : "success-text")">@Format.Money(t.AmountMinor)</td>
+                                <td><input type="checkbox" checked="@t.Cleared" @onchange="() => ToggleClearedAsync(t.Id)" title="Cleared" /></td>
+                                <td class="actions"><ConfirmButton IconOnly OnConfirm="() => DeleteAsync(t.Id)" /></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private Account? _account;
+    private IReadOnlyList<Txn> _txns = [];
+    private IReadOnlyList<CategoryGroup> _groups = [];
+    private IReadOnlyList<AccountBalance> _otherAccounts = [];
+    private string _mode = "out";
+    private TxnForm _form = new();
+
+    protected override Task OnParametersSetAsync() => RunAsync(async () =>
+    {
+        _groups = await Budget.GroupsAsync();
+        _otherAccounts = [.. (await Budget.AccountsAsync()).Where(a => a.Account.Id != Id)];
+        _form = new TxnForm { Date = Today() };
+        await LoadAsync();
+    });
+
+    private async Task LoadAsync() => (_account, _txns) = await Budget.RegisterAsync(Id);
+
+    private DateOnly Today() => DateOnly.FromDateTime(Clock.GetUtcNow().UtcDateTime);
+
+    private string CategoryName(int id) => _groups.SelectMany(g => g.Categories).FirstOrDefault(c => c.Id == id)?.Name ?? "?";
+
+    private Task AddAsync() => RunAsync(async () =>
+    {
+        AppException.ThrowIf(!Format.TryParseMoney(_form.Amount, out var amount) || amount <= 0, "Enter a positive amount like 12.50.");
+        var date = _form.Date ?? Today();
+        switch (_mode)
+        {
+            case "transfer":
+                AppException.ThrowIf(_form.ToAccountId == 0, "Choose the account to transfer to.");
+                await Budget.TransferAsync(Id, _form.ToAccountId, date, amount, _form.Memo);
+                break;
+            case "in":
+                await Budget.AddTransactionAsync(Id, date, _form.Payee, null, amount, _form.Memo);
+                break;
+            default:
+                AppException.ThrowIf(_form.CategoryId == 0, "Choose a category.");
+                await Budget.AddTransactionAsync(Id, date, _form.Payee, _form.CategoryId, -amount, _form.Memo);
+                break;
+        }
+        _form = new TxnForm { Date = date, CategoryId = _form.CategoryId };
+        await LoadAsync();
+    }, "Added.");
+
+    private Task ToggleClearedAsync(long id) => RunAsync(async () =>
+    {
+        await Budget.ToggleClearedAsync(id);
+        await LoadAsync();
+    });
+
+    private Task DeleteAsync(long id) => RunAsync(async () =>
+    {
+        await Budget.DeleteTransactionAsync(id);
+        await LoadAsync();
+    });
+
+    private sealed class TxnForm
+    {
+        public DateOnly? Date { get; set; }
+        public string? Payee { get; set; }
+        public int CategoryId { get; set; }
+        public int ToAccountId { get; set; }
+        public string? Amount { get; set; }
+        public string? Memo { get; set; }
+    }
+}

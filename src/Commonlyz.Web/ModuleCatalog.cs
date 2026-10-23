@@ -18,6 +18,11 @@ public static class ModuleCatalog
         new Modules.SlotBook.SlotBookModule(),
         new Modules.StockRoom.StockRoomModule(),
         new Modules.ClientCollect.ClientCollectModule(),
+        new Modules.TaskBoard.TaskBoardModule(),
+        new Modules.TeamWiki.TeamWikiModule(),
+        new Modules.TeamChat.TeamChatModule(),
+        new Modules.StatusBoard.StatusBoardModule(),
+        new Modules.BudgetPlan.BudgetPlanModule(),
     ];
 
     public static Assembly[] Assemblies => [.. All.Select(m => m.GetType().Assembly).Distinct()];

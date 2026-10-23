@@ -1,0 +1,61 @@
+@page "/wiki/{Id:int}/history"
+@inherits ModulePage
+@inject WikiService Wiki
+@inject ICurrentUser CurrentUser
+
+<PageHeader Title="Page history" Subtitle="@_title">
+    <a class="btn" href="@($"wiki/{Id}")"><Icon Name="left" /> Back to page</a>
+</PageHeader>
+<Alerts Error="@Error" Success="@Success" />
+
+<div class="split">
+    <section class="card">
+        <ul class="list">
+            @foreach (var r in _revisions)
+            {
+                <li>
+                    <button class="btn ghost block" style="justify-content:flex-start" @onclick="() => _selected = r">
+                        <span class="grow" style="text-align:left">@Format.DateTime(r.SavedUtc)<br /><span class="muted small">@r.SavedBy</span></span>
+                    </button>
+                </li>
+            }
+        </ul>
+        @if (_revisions.Count == 0) { <p class="muted">No saved revisions yet.</p> }
+    </section>
+    <section class="card">
+        @if (_selected is null)
+        {
+            <p class="muted">Choose a revision to preview it.</p>
+        }
+        else
+        {
+            <div class="row between">
+                <h2>@_selected.Title</h2>
+                <button class="btn" @onclick="RestoreAsync">Restore this version</button>
+            </div>
+            <div class="prose">@Markdown.Render(_selected.Body)</div>
+        }
+    </section>
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private IReadOnlyList<PageRevision> _revisions = [];
+    private PageRevision? _selected;
+    private string _title = "";
+
+    protected override Task OnParametersSetAsync() => RunAsync(LoadAsync);
+
+    private async Task LoadAsync()
+    {
+        _title = (await Wiki.GetAsync(Id)).Title;
+        _revisions = await Wiki.RevisionsAsync(Id);
+    }
+
+    private Task RestoreAsync() => RunAsync(async () =>
+    {
+        await Wiki.RestoreAsync(_selected!.Id, (await CurrentUser.GetAsync()).DisplayName);
+        await LoadAsync();
+    }, "Restored. The restore itself is a new revision, so it can be undone.");
+}

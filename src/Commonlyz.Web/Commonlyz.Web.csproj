@@ -14,6 +14,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Commonlyz.Core\Commonlyz.Core.csproj" />
+    <ProjectReference Include="..\Modules\Commonlyz.Modules.BudgetPlan\Commonlyz.Modules.BudgetPlan.csproj" />
+    <ProjectReference Include="..\Modules\Commonlyz.Modules.StatusBoard\Commonlyz.Modules.StatusBoard.csproj" />
+    <ProjectReference Include="..\Modules\Commonlyz.Modules.TeamChat\Commonlyz.Modules.TeamChat.csproj" />
+    <ProjectReference Include="..\Modules\Commonlyz.Modules.TeamWiki\Commonlyz.Modules.TeamWiki.csproj" />
+    <ProjectReference Include="..\Modules\Commonlyz.Modules.TaskBoard\Commonlyz.Modules.TaskBoard.csproj" />
     <ProjectReference Include="..\Modules\Commonlyz.Modules.ClientCollect\Commonlyz.Modules.ClientCollect.csproj" />
     <ProjectReference Include="..\Modules\Commonlyz.Modules.StockRoom\Commonlyz.Modules.StockRoom.csproj" />
     <ProjectReference Include="..\Modules\Commonlyz.Modules.SlotBook\Commonlyz.Modules.SlotBook.csproj" />
