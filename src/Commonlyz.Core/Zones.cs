@@ -39,7 +39,7 @@ public static class Zones
         Instant.FromDateTimeUtc(Clock.AsUtc(utc)).InZone(zone).LocalDateTime.ToDateTimeUnspecified();
 
     /// <summary>
-    /// Local wall-clock time → UTC. Times skipped by DST move forward; ambiguous times take the earlier instant.
+    /// Local wall-clock time → UTC. Times skipped by DST shift forward by the gap (01:30 → 02:30); ambiguous times take the earlier instant.
     /// </summary>
     public static DateTime ToUtc(DateOnly date, TimeOnly time, DateTimeZone zone) =>
         zone.AtLeniently(new LocalDateTime(date.Year, date.Month, date.Day, time.Hour, time.Minute, time.Second)).ToDateTimeUtc();

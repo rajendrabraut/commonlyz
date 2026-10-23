@@ -20,4 +20,7 @@
     <Project Path="src/Modules/Commonlyz.Modules.TeamWiki/Commonlyz.Modules.TeamWiki.csproj" />
     <Project Path="src/Modules/Commonlyz.Modules.TimeTrack/Commonlyz.Modules.TimeTrack.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Commonlyz.Tests/Commonlyz.Tests.csproj" />
+  </Folder>
 </Solution>
