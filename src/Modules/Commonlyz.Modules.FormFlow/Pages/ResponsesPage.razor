@@ -1,0 +1,59 @@
+@page "/formflow/{Id:int}/responses"
+@inherits ModulePage
+@inject FormFlowService Forms
+
+<PageHeader Title="Responses" Subtitle="@($"{_rows.Count} responses")">
+    <a class="btn" href="@($"formflow/{Id}")"><Icon Name="left" /> Editor</a>
+    <a class="btn" href="@($"formflow/{Id}/responses.csv")"><Icon Name="download" /> CSV</a>
+</PageHeader>
+<Alerts Error="@Error" />
+
+<section class="card">
+    @if (_rows.Count == 0)
+    {
+        <EmptyState Message="No responses yet." IconName="inbox" />
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Submitted (UTC)</th>
+                        @foreach (var c in _columns) { <th title="@c.Prompt">@Short(c.Prompt)</th> }
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _rows)
+                    {
+                        <tr>
+                            <td class="nowrap muted small">@Format.DateTime(row.SubmittedUtc) <span class="badge">v@(row.VersionNo)</span></td>
+                            @foreach (var c in _columns) { <td class="truncate" title="@row.Answers.GetValueOrDefault(c.Key)">@row.Answers.GetValueOrDefault(c.Key)?.Replace('\n', ',')</td> }
+                            <td class="actions"><ConfirmButton IconOnly OnConfirm="() => DeleteAsync(row.Id)" /></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private IReadOnlyList<QuestionSnapshot> _columns = [];
+    private IReadOnlyList<ResponseRow> _rows = [];
+
+    protected override Task OnParametersSetAsync() => RunAsync(LoadAsync);
+
+    private async Task LoadAsync() => (_columns, _rows) = await Forms.GetResponsesAsync(Id);
+
+    private Task DeleteAsync(long responseId) => RunAsync(async () =>
+    {
+        await Forms.DeleteResponseAsync(responseId);
+        await LoadAsync();
+    });
+
+    private static string Short(string text) => text.Length <= 30 ? text : text[..30] + "…";
+}

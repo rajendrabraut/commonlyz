@@ -1,0 +1,141 @@
+@page "/clientcollect"
+@inherits ModulePage
+@inject ClientCollectService Collect
+@inject NavigationManager Navigation
+
+<PageHeader Title="ClientCollect" Subtitle="Ask clients for answers and files through a private link. No client accounts needed." />
+<Alerts Error="@Error" Success="@Success" />
+
+@if (_newLink is not null)
+{
+    <div class="alert success stack" style="display:block">
+        <strong>Request created.</strong> Send this private link to your client — it's shown only once:
+        <input readonly value="@_newLink" style="margin-top:6px" />
+    </div>
+}
+
+<div class="with-aside">
+    <section class="card">
+        <div class="row between">
+            <h2>Requests</h2>
+            <label class="check small"><input type="checkbox" @bind="_showArchived" @bind:after="LoadAsync" /> Show archived</label>
+        </div>
+        @if (_requests.Count == 0) { <EmptyState Message="No requests yet." IconName="inbox" /> }
+        else
+        {
+            <table>
+                <thead><tr><th>Request</th><th>Client</th><th>Progress</th><th>Due</th></tr></thead>
+                <tbody>
+                    @foreach (var r in _requests)
+                    {
+                        var accepted = r.Items.Count(i => i.Status == ItemStatus.Accepted);
+                        var review = r.Items.Count(i => i.Status == ItemStatus.Submitted);
+                        <tr>
+                            <td><a href="@($"clientcollect/{r.Id}")">@r.Title</a> @if (r.Status != RequestStatus.Open) { <span class="badge @(r.Status == RequestStatus.Complete ? "ok" : null)">@r.Status.ToString().ToLowerInvariant()</span> }</td>
+                            <td>@r.Client?.Name</td>
+                            <td style="min-width:140px">
+                                <div class="progress"><span style="width:@Pct(accepted, r.Items.Count)"></span></div>
+                                <span class="muted small">@accepted/@r.Items.Count accepted@(review > 0 ? $" · {review} to review" : "")</span>
+                            </td>
+                            <td class="small">@(r.DueDate is { } d ? Format.Date(d) : "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+
+    <aside>
+        <section class="card">
+            <h2>New request</h2>
+            <EditForm Model="_form" OnSubmit="CreateAsync" class="stack">
+                <label class="field"><span>Client</span>
+                    <InputSelect @bind-Value="_form.ClientId">
+                        <option value="0">Choose…</option>
+                        @foreach (var c in _clients) { <option value="@c.Id">@c.Name</option> }
+                    </InputSelect>
+                </label>
+                <label class="field"><span>Title</span><InputText @bind-Value="_form.Title" placeholder="Website content" /></label>
+                <label class="field"><span>Message</span><InputTextArea @bind-Value="_form.Message" rows="2" /></label>
+                <label class="field"><span>Due</span><InputDate @bind-Value="_form.Due" /></label>
+                <span class="field"><span>Items to collect</span></span>
+                @foreach (var item in _form.Items)
+                {
+                    <div class="row">
+                        <select style="width:90px" @bind="item.Kind"><option value="@ItemKind.Text">Text</option><option value="@ItemKind.File">File</option></select>
+                        <input class="grow" @bind="item.Prompt" placeholder="@(item.Kind == ItemKind.File ? "Your logo (SVG or PNG)" : "About-us paragraph")" />
+                        <button type="button" class="btn sm ghost" @onclick="() => _form.Items.Remove(item)"><Icon Name="x" Size="14" /></button>
+                    </div>
+                }
+                <button type="button" class="btn sm" @onclick="() => _form.Items.Add(new())"><Icon Name="plus" Size="14" /> Add item</button>
+                <button class="btn primary" disabled="@Busy">Create request</button>
+            </EditForm>
+        </section>
+        <section class="card">
+            <h2>New client</h2>
+            <EditForm Model="_client" OnSubmit="AddClientAsync" class="stack">
+                <label class="field"><span>Name</span><InputText @bind-Value="_client.Name" /></label>
+                <label class="field"><span>Email</span><InputText @bind-Value="_client.Email" type="email" /></label>
+                <button class="btn">Add client</button>
+            </EditForm>
+        </section>
+    </aside>
+</div>
+
+@code {
+    private IReadOnlyList<CollectRequest> _requests = [];
+    private IReadOnlyList<Client> _clients = [];
+    private bool _showArchived;
+    private string? _newLink;
+    private RequestForm _form = new();
+    private ClientForm _client = new();
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _requests = await Collect.ListRequestsAsync(_showArchived);
+        _clients = await Collect.ListClientsAsync();
+    }
+
+    private static string Pct(int part, int total) =>
+        (total == 0 ? 0 : part * 100 / total).ToString(System.Globalization.CultureInfo.InvariantCulture) + "%";
+
+    private Task CreateAsync() => RunAsync(async () =>
+    {
+        var (_, token) = await Collect.CreateRequestAsync(_form.ClientId, _form.Title, _form.Message, _form.Due,
+            [.. _form.Items.Select(i => new NewItem(i.Kind, i.Prompt))]);
+        _newLink = Navigation.BaseUri + "portal/" + token;
+        _form = new();
+        await LoadAsync();
+    });
+
+    private Task AddClientAsync() => RunAsync(async () =>
+    {
+        var id = await Collect.CreateClientAsync(_client.Name, _client.Email);
+        _client = new();
+        await LoadAsync();
+        _form.ClientId = id;
+    }, "Client added.");
+
+    private sealed class RequestForm
+    {
+        public int ClientId { get; set; }
+        public string Title { get; set; } = "";
+        public string? Message { get; set; }
+        public DateOnly? Due { get; set; }
+        public List<ItemForm> Items { get; set; } = [new(), new() { Kind = ItemKind.File }];
+    }
+
+    private sealed class ItemForm
+    {
+        public ItemKind Kind { get; set; } = ItemKind.Text;
+        public string Prompt { get; set; } = "";
+    }
+
+    private sealed class ClientForm
+    {
+        public string Name { get; set; } = "";
+        public string Email { get; set; } = "";
+    }
+}

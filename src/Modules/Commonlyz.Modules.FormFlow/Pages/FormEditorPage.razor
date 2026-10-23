@@ -1,0 +1,170 @@
+@page "/formflow/{Id:int}"
+@inherits ModulePage
+@inject FormFlowService Forms
+@inject NavigationManager Navigation
+
+@if (_editor is null)
+{
+    <Alerts Error="@Error" />
+}
+else
+{
+    var form = _editor.Value.Form;
+    <PageHeader Title="@form.Title" Subtitle="@(_editor.Value.VersionNo is { } v ? $"Published version {v}" : "Not published yet")">
+        <a class="btn" href="formflow"><Icon Name="left" /> Forms</a>
+        <a class="btn" href="@($"formflow/{Id}/responses")">Responses</a>
+        @if (form.PublishedVersionId is not null) { <a class="btn" href="@($"f/{form.Slug}")" target="_blank"><Icon Name="external" /> Open form</a> }
+        <button class="btn primary" @onclick="PublishAsync" disabled="@(Busy || !_editor.Value.HasUnpublishedChanges)">Publish</button>
+    </PageHeader>
+    <Alerts Error="@Error" Success="@Success" />
+    @if (_editor.Value.HasUnpublishedChanges && form.Questions.Count > 0)
+    {
+        <div class="alert warning"><Icon Name="alert" /> You have unpublished changes. Respondents still see the last published version.</div>
+    }
+
+    <div class="with-aside">
+        <div>
+            <section class="card">
+                <h2>Questions</h2>
+                @if (form.Questions.Count == 0) { <EmptyState Message="No questions yet. Add one below." IconName="form" /> }
+                <ol class="list">
+                    @foreach (var q in form.Questions)
+                    {
+                        <li class="row">
+                            <div class="btn-group">
+                                <button class="btn sm ghost" @onclick="() => MoveAsync(q.Id, -1)"><Icon Name="up" Size="16" /></button>
+                                <button class="btn sm ghost" @onclick="() => MoveAsync(q.Id, 1)"><Icon Name="down" Size="16" /></button>
+                            </div>
+                            <div class="grow">
+                                <strong>@q.Prompt</strong>@if (q.IsRequired) { <span class="danger-text"> *</span> }
+                                <div class="muted small">@q.Type@(q.Options is null ? "" : " · " + q.Options.Replace('\n', ',').Replace(",", ", "))</div>
+                            </div>
+                            <button class="btn sm ghost" @onclick="() => EditQuestion(q)"><Icon Name="edit" Size="16" /></button>
+                            <ConfirmButton IconOnly OnConfirm="() => DeleteQuestionAsync(q.Id)" />
+                        </li>
+                    }
+                </ol>
+            </section>
+
+            <section class="card">
+                <h2>@(_question.Id is null ? "Add question" : "Edit question")</h2>
+                <EditForm Model="_question" OnSubmit="SaveQuestionAsync" class="stack">
+                    <div class="form-row">
+                        <label class="field wide"><span>Question</span><InputText @bind-Value="_question.Prompt" /></label>
+                        <label class="field"><span>Type</span>
+                            <InputSelect @bind-Value="_question.Type">
+                                @foreach (var t in Enum.GetValues<QuestionType>()) { <option value="@t">@t</option> }
+                            </InputSelect>
+                        </label>
+                    </div>
+                    <label class="field"><span>Help text (optional)</span><InputText @bind-Value="_question.Help" /></label>
+                    @if (_question.Type is QuestionType.SingleChoice or QuestionType.MultiChoice)
+                    {
+                        <label class="field"><span>Options (one per line)</span><InputTextArea @bind-Value="_question.Options" rows="4" /></label>
+                    }
+                    <label class="check"><InputCheckbox @bind-Value="_question.Required" /> Required</label>
+                    <div class="row">
+                        <button class="btn primary" disabled="@Busy">@(_question.Id is null ? "Add question" : "Save question")</button>
+                        @if (_question.Id is not null) { <button type="button" class="btn ghost" @onclick="() => _question = new()">Cancel</button> }
+                    </div>
+                </EditForm>
+            </section>
+        </div>
+
+        <aside>
+            <section class="card">
+                <h2>Settings</h2>
+                <EditForm Model="_settings" OnSubmit="SaveSettingsAsync" class="stack">
+                    <label class="field"><span>Title</span><InputText @bind-Value="_settings.Title" /></label>
+                    <label class="field"><span>Link name (/f/…)</span><InputText @bind-Value="_settings.Slug" /></label>
+                    <label class="field"><span>Intro text</span><InputTextArea @bind-Value="_settings.Description" rows="3" /></label>
+                    <label class="check"><InputCheckbox @bind-Value="_settings.IsOpen" /> Accepting responses</label>
+                    <button class="btn">Save settings</button>
+                </EditForm>
+                <hr />
+                <ConfirmButton Text="Delete form" ConfirmText="Delete form and responses" OnConfirm="DeleteFormAsync" />
+            </section>
+        </aside>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private (Data.Form Form, bool HasUnpublishedChanges, int? VersionNo)? _editor;
+    private QuestionForm _question = new();
+    private readonly SettingsForm _settings = new();
+
+    protected override Task OnParametersSetAsync() => RunAsync(LoadAsync);
+
+    private async Task LoadAsync()
+    {
+        _editor = await Forms.GetEditorAsync(Id);
+        var form = _editor.Value.Form;
+        _settings.Title = form.Title;
+        _settings.Slug = form.Slug;
+        _settings.Description = form.Description;
+        _settings.IsOpen = form.IsOpen;
+    }
+
+    private void EditQuestion(Data.FormQuestion q) => _question = new QuestionForm
+    {
+        Id = q.Id, Prompt = q.Prompt, Type = q.Type, Help = q.Help, Required = q.IsRequired, Options = q.Options,
+    };
+
+    private Task SaveQuestionAsync() => RunAsync(async () =>
+    {
+        await Forms.SaveQuestionAsync(Id, _question.Id, _question.Type, _question.Prompt, _question.Help, _question.Required, _question.Options);
+        _question = new QuestionForm { Type = _question.Type };
+        await LoadAsync();
+    });
+
+    private Task MoveAsync(int questionId, int direction) => RunAsync(async () =>
+    {
+        await Forms.MoveQuestionAsync(questionId, direction);
+        await LoadAsync();
+    });
+
+    private Task DeleteQuestionAsync(int questionId) => RunAsync(async () =>
+    {
+        await Forms.DeleteQuestionAsync(questionId);
+        await LoadAsync();
+    });
+
+    private Task PublishAsync() => RunAsync(async () =>
+    {
+        var version = await Forms.PublishAsync(Id);
+        await LoadAsync();
+        Success = $"Published version {version}.";
+    });
+
+    private Task SaveSettingsAsync() => RunAsync(async () =>
+    {
+        await Forms.UpdateFormAsync(Id, _settings.Title, _settings.Slug, _settings.Description, _settings.IsOpen);
+        await LoadAsync();
+    }, "Settings saved.");
+
+    private Task DeleteFormAsync() => RunAsync(async () =>
+    {
+        await Forms.DeleteFormAsync(Id);
+        Navigation.NavigateTo("formflow");
+    });
+
+    private sealed class QuestionForm
+    {
+        public int? Id { get; set; }
+        public string Prompt { get; set; } = "";
+        public QuestionType Type { get; set; } = QuestionType.ShortText;
+        public string? Help { get; set; }
+        public bool Required { get; set; } = true;
+        public string? Options { get; set; }
+    }
+
+    private sealed class SettingsForm
+    {
+        public string Title { get; set; } = "";
+        public string Slug { get; set; } = "";
+        public string? Description { get; set; }
+        public bool IsOpen { get; set; }
+    }
+}

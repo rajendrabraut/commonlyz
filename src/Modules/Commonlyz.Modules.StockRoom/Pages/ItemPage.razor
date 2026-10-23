@@ -1,0 +1,90 @@
+@page "/stockroom/items/{Id:int}"
+@inherits ModulePage
+@inject StockRoomService Stock
+
+@if (_data is null)
+{
+    <Alerts Error="@Error" />
+}
+else
+{
+    var (stock, history) = _data.Value;
+    <PageHeader Title="@stock.Item.Name" Subtitle="@($"{stock.Item.Sku} · {stock.Total:0.###} {stock.Item.Unit} on hand")">
+        <a class="btn" href="stockroom"><Icon Name="left" /> StockRoom</a>
+    </PageHeader>
+    <Alerts Error="@Error" Success="@Success" />
+
+    <div class="with-aside">
+        <section class="card">
+            <h2>History</h2>
+            @if (history.Count == 0) { <EmptyState Message="No movements yet." IconName="box" /> }
+            else
+            {
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>When (UTC)</th><th>Type</th><th>Location</th><th class="num">Change</th><th class="num">Balance there</th><th>By / note</th></tr></thead>
+                        <tbody>
+                            @foreach (var h in history)
+                            {
+                                var m = h.Movement;
+                                <tr>
+                                    <td class="nowrap small">@Format.DateTime(m.CreatedUtc)</td>
+                                    <td><span class="badge @(m.QuantityDelta > 0 ? "ok" : "warn")">@m.Reason</span></td>
+                                    <td>@h.LocationName</td>
+                                    <td class="num @(m.QuantityDelta > 0 ? "success-text" : "danger-text")">@(m.QuantityDelta > 0 ? "+" : "")@m.QuantityDelta.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)</td>
+                                    <td class="num">@h.BalanceAtLocation.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)</td>
+                                    <td class="small">@m.CreatedBy<span class="muted">@(m.Note is null ? "" : " · " + m.Note)</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+
+        <aside>
+            <section class="card">
+                <h2>Details</h2>
+                <EditForm Model="_form" OnSubmit="SaveAsync" class="stack">
+                    <label class="field"><span>SKU</span><InputText @bind-Value="_form.Sku" /></label>
+                    <label class="field"><span>Name</span><InputText @bind-Value="_form.Name" /></label>
+                    <label class="field"><span>Unit</span><InputText @bind-Value="_form.Unit" /></label>
+                    <label class="field"><span>Alert when at or below</span><InputNumber @bind-Value="_form.LowStock" step="any" /></label>
+                    <label class="field"><span>Notes</span><InputTextArea @bind-Value="_form.Notes" rows="3" /></label>
+                    <button class="btn primary">Save</button>
+                </EditForm>
+            </section>
+        </aside>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private (ItemStock Stock, IReadOnlyList<HistoryRow> History)? _data;
+    private readonly ItemForm _form = new();
+
+    protected override Task OnParametersSetAsync() => RunAsync(LoadAsync);
+
+    private async Task LoadAsync()
+    {
+        _data = await Stock.GetItemAsync(Id);
+        var item = _data.Value.Stock.Item;
+        (_form.Sku, _form.Name, _form.Unit, _form.LowStock, _form.Notes) = (item.Sku, item.Name, item.Unit, item.LowStockThreshold, item.Notes);
+    }
+
+    private Task SaveAsync() => RunAsync(async () =>
+    {
+        await Stock.SaveItemAsync(Id, _form.Sku, _form.Name, _form.Unit, _form.LowStock, _form.Notes);
+        await LoadAsync();
+    }, "Saved.");
+
+    private sealed class ItemForm
+    {
+        public string Sku { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Unit { get; set; } = "";
+        public decimal? LowStock { get; set; }
+        public string? Notes { get; set; }
+    }
+}

@@ -1,0 +1,51 @@
+@page "/stockroom/locations"
+@inherits ModulePage
+@inject StockRoomService Stock
+
+<PageHeader Title="Locations" Subtitle="Rooms, shelves, bins — anywhere stock can be.">
+    <a class="btn" href="stockroom"><Icon Name="left" /> StockRoom</a>
+</PageHeader>
+<Alerts Error="@Error" Success="@Success" />
+
+<section class="card">
+    <EditForm Model="_form" OnSubmit="SaveAsync" class="form-row">
+        <label class="field"><span>Name</span><InputText @bind-Value="_form.Name" placeholder="Shelf A" /></label>
+        <label class="field wide"><span>Description</span><InputText @bind-Value="_form.Description" /></label>
+        <button class="btn primary" disabled="@Busy">@(_form.Id is null ? "Add" : "Save")</button>
+        @if (_form.Id is not null) { <button type="button" class="btn ghost" @onclick="() => _form = new()">Cancel</button> }
+    </EditForm>
+</section>
+
+<section class="card">
+    @if (_locations.Count == 0) { <EmptyState Message="No locations yet." IconName="box" /> }
+    <ul class="list">
+        @foreach (var l in _locations)
+        {
+            <li class="row">
+                <span class="grow"><strong>@l.Name</strong> <span class="muted small">@l.Description</span></span>
+                <button class="btn sm ghost" @onclick="() => _form = new Form { Id = l.Id, Name = l.Name, Description = l.Description }"><Icon Name="edit" Size="16" /></button>
+            </li>
+        }
+    </ul>
+</section>
+
+@code {
+    private IReadOnlyList<Location> _locations = [];
+    private Form _form = new();
+
+    protected override async Task OnInitializedAsync() => _locations = await Stock.ListLocationsAsync();
+
+    private Task SaveAsync() => RunAsync(async () =>
+    {
+        await Stock.SaveLocationAsync(_form.Id, _form.Name, _form.Description);
+        _form = new();
+        _locations = await Stock.ListLocationsAsync();
+    }, "Saved.");
+
+    private sealed class Form
+    {
+        public int? Id { get; set; }
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+    }
+}

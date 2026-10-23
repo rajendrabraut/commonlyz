@@ -20,7 +20,7 @@ public abstract class ModulePage : ComponentBase
         try
         {
             await action();
-            Success = success;
+            Success = success ?? Success;   // the action may set its own message
             return true;
         }
         catch (AppException ex)

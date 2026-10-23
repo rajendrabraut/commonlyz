@@ -64,11 +64,12 @@ public sealed class SplitShareService(IDbContextFactory<SplitShareDb> dbFactory,
     public async Task DeleteGroupAsync(int groupId)
     {
         await using var db = await dbFactory.CreateDbContextAsync();
-        await using var tx = await db.Database.BeginTransactionAsync();
-        await db.Settlements.Where(s => s.GroupId == groupId).ExecuteDeleteAsync();
-        await db.Expenses.Where(e => e.GroupId == groupId).ExecuteDeleteAsync();
-        await db.Groups.Where(g => g.Id == groupId).ExecuteDeleteAsync();
-        await tx.CommitAsync();
+        await db.InTransactionAsync(async () =>
+        {
+            await db.Settlements.Where(s => s.GroupId == groupId).ExecuteDeleteAsync();
+            await db.Expenses.Where(e => e.GroupId == groupId).ExecuteDeleteAsync();
+            await db.Groups.Where(g => g.Id == groupId).ExecuteDeleteAsync();
+        });
     }
 
     public async Task<GroupView> GetGroupAsync(int groupId)

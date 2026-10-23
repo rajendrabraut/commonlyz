@@ -1,0 +1,142 @@
+@page "/book/{Slug}"
+@inject SlotBookService Slots
+@inject TimeProvider Clock
+
+@if (!_loaded)
+{
+    <p class="muted center">Loading…</p>
+}
+else if (_type is null)
+{
+    <PageTitle>Not available</PageTitle>
+    <div class="card center"><h1>Booking page not available</h1></div>
+}
+else if (_booked is not null)
+{
+    <PageTitle>Booked</PageTitle>
+    <div class="card center stack">
+        <Icon Name="check" Size="36" Class="success-text" />
+        <h1>You're booked</h1>
+        <p><strong>@_type.Name</strong><br />@Show(_booked.StartUtc, "dddd d MMMM yyyy, HH:mm") (@_viewZone)</p>
+        @if (_type.Location is not null) { <p class="muted">@_type.Location</p> }
+        <p class="muted small">Need to cancel? Keep this link: <a href="@($"book/cancel/{_booked.CancelToken}")">cancel booking</a></p>
+    </div>
+}
+else
+{
+    <PageTitle>Book: @_type.Name</PageTitle>
+    <div class="card stack">
+        <h1>@_type.Name</h1>
+        <p class="muted">@_type.DurationMinutes minutes@(_type.Location is null ? "" : $" · {_type.Location}")</p>
+        @if (_type.Description is not null) { <p>@_type.Description</p> }
+
+        <label class="field"><span>Show times in</span>
+            <select @bind="_viewZone">
+                @foreach (var id in Zones.AllIds) { <option value="@id">@id</option> }
+            </select>
+        </label>
+
+        @if (_days.Count == 0)
+        {
+            <EmptyState Message="No times available in the next two weeks." IconName="calendar" />
+        }
+        else
+        {
+            <div class="chips">
+                @foreach (var day in _days.Keys)
+                {
+                    <button class="chip @(day == _selectedDay ? "active" : null)" @onclick="() => { _selectedDay = day; _selected = null; }">@day.ToString("ddd d MMM", System.Globalization.CultureInfo.InvariantCulture)</button>
+                }
+            </div>
+            @if (_selectedDay is { } selectedDay)
+            {
+                <div class="slot-grid">
+                    @foreach (var slot in _days[selectedDay])
+                    {
+                        <button class="btn @(_selected == slot ? "active" : null)" @onclick="() => _selected = slot">@Show(slot.StartUtc, "HH:mm")</button>
+                    }
+                </div>
+            }
+        }
+
+        @if (_selected is { } chosen)
+        {
+            <hr />
+            <h2>@Show(chosen.StartUtc, "dddd d MMMM, HH:mm") <span class="muted small">(@_viewZone)</span></h2>
+            <EditForm Model="_guest" OnSubmit="BookAsync" class="stack">
+                <label class="field"><span>Your name</span><InputText @bind-Value="_guest.Name" autocomplete="name" /></label>
+                <label class="field"><span>Email</span><InputText @bind-Value="_guest.Email" type="email" autocomplete="email" /></label>
+                <label class="field"><span>Anything to share? (optional)</span><InputTextArea @bind-Value="_guest.Notes" rows="2" /></label>
+                @if (_error is not null) { <p class="alert error">@_error</p> }
+                <button class="btn primary" disabled="@_busy">Confirm booking</button>
+            </EditForm>
+        }
+    </div>
+}
+
+@code {
+    private const int DaysShown = 14;
+
+    [Parameter] public string Slug { get; set; } = "";
+
+    private MeetingType? _type;
+    private Dictionary<DateOnly, List<Slot>> _days = [];
+    private DateOnly? _selectedDay;
+    private Slot? _selected;
+    private Booking? _booked;
+    private string _viewZone = "UTC";
+    private readonly GuestForm _guest = new();
+    private bool _loaded;
+    private bool _busy;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _type = await Slots.GetPublicTypeAsync(Slug);
+        if (_type is not null)
+        {
+            _viewZone = _type.TimeZoneId;
+            await LoadSlotsAsync();
+        }
+        _loaded = true;
+    }
+
+    private async Task LoadSlotsAsync()
+    {
+        var zone = Zones.Get(_type!.TimeZoneId);
+        var today = Zones.LocalDate(Clock.GetUtcNow().UtcDateTime, zone);
+        var slots = await Slots.GetSlotsAsync(_type, today, DaysShown);
+        // Group by the owner's calendar day so each day's slots stay together.
+        _days = slots.GroupBy(s => Zones.LocalDate(s.StartUtc, zone)).ToDictionary(g => g.Key, g => g.ToList());
+        _selectedDay = _days.Count > 0 ? _days.Keys.Min() : null;
+    }
+
+    private string Show(DateTime utc, string format) =>
+        Zones.ToLocal(utc, Zones.Get(_viewZone)).ToString(format, System.Globalization.CultureInfo.InvariantCulture);
+
+    private async Task BookAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            _booked = await Slots.BookAsync(Slug, _selected!.Value.StartUtc, _guest.Name, _guest.Email, _guest.Notes);
+        }
+        catch (AppException ex)
+        {
+            _error = ex.Message;
+            await LoadSlotsAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private sealed class GuestForm
+    {
+        public string Name { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string? Notes { get; set; }
+    }
+}

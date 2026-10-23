@@ -1,0 +1,135 @@
+@page "/slotbook/types/{Id:int}"
+@inherits ModulePage
+@inject SlotBookService Slots
+@inject NavigationManager Navigation
+
+@if (_type is null)
+{
+    <Alerts Error="@Error" />
+}
+else
+{
+    <PageHeader Title="@_type.Name" Subtitle="@($"/book/{_type.Slug} · {_type.TimeZoneId}")">
+        <a class="btn" href="slotbook"><Icon Name="left" /> SlotBook</a>
+        <a class="btn" href="@($"book/{_type.Slug}")" target="_blank"><Icon Name="external" /> Booking page</a>
+    </PageHeader>
+    <Alerts Error="@Error" Success="@Success" />
+
+    <div class="grid-2">
+        <section class="card">
+            <h2>Weekly availability</h2>
+            <p class="muted small">Times are in @_type.TimeZoneId. Add several windows per day for breaks.</p>
+            <table>
+                <tbody>
+                    @foreach (var day in WeekDays)
+                    {
+                        var windows = _rules.Where(r => r.Day == day).ToList();
+                        <tr>
+                            <td class="nowrap" style="width:110px"><strong>@day</strong></td>
+                            <td>
+                                @if (windows.Count == 0) { <span class="muted small">Unavailable</span> }
+                                @foreach (var w in windows)
+                                {
+                                    <div class="row" style="margin:2px 0">
+                                        <input type="time" style="width:auto" @bind="w.Start" />–<input type="time" style="width:auto" @bind="w.End" />
+                                        <button class="btn sm ghost" @onclick="() => _rules.Remove(w)"><Icon Name="x" Size="14" /></button>
+                                    </div>
+                                }
+                            </td>
+                            <td class="actions"><button class="btn sm ghost" @onclick="() => _rules.Add(new Window { Day = day, Start = new(9, 0), End = new(17, 0) })"><Icon Name="plus" Size="14" /></button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <button class="btn primary" style="margin-top:12px" @onclick="SaveRulesAsync" disabled="@Busy">Save availability</button>
+        </section>
+
+        <section class="card">
+            <h2>Settings</h2>
+            <EditForm Model="_form" OnSubmit="SaveSettingsAsync" class="stack">
+                <label class="field"><span>Name</span><InputText @bind-Value="_form.Name" /></label>
+                <label class="field"><span>Link name</span><InputText @bind-Value="_form.Slug" /></label>
+                <label class="field"><span>Description</span><InputTextArea @bind-Value="_form.Description" rows="2" /></label>
+                <label class="field"><span>Location / call link</span><InputText @bind-Value="_form.Location" /></label>
+                <div class="form-row">
+                    <label class="field"><span>Duration (min)</span><InputNumber @bind-Value="_form.Duration" /></label>
+                    <label class="field"><span>Buffer (min)</span><InputNumber @bind-Value="_form.Buffer" /></label>
+                    <label class="field"><span>Min notice (min)</span><InputNumber @bind-Value="_form.MinNotice" /></label>
+                    <label class="field"><span>Days ahead</span><InputNumber @bind-Value="_form.MaxDays" /></label>
+                </div>
+                <label class="field"><span>Time zone</span>
+                    <InputSelect @bind-Value="_form.TimeZone">
+                        @foreach (var id in Zones.AllIds) { <option value="@id">@id</option> }
+                    </InputSelect>
+                </label>
+                <label class="check"><InputCheckbox @bind-Value="_form.Active" /> Accepting bookings</label>
+                <div class="row between">
+                    <button class="btn primary">Save settings</button>
+                    <ConfirmButton Text="Delete" ConfirmText="Delete type and its bookings" OnConfirm="DeleteAsync" />
+                </div>
+            </EditForm>
+        </section>
+    </div>
+}
+
+@code {
+    private static readonly DayOfWeek[] WeekDays =
+        [DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday];
+
+    [Parameter] public int Id { get; set; }
+
+    private MeetingType? _type;
+    private List<Window> _rules = [];
+    private readonly SettingsForm _form = new();
+
+    protected override Task OnParametersSetAsync() => RunAsync(LoadAsync);
+
+    private async Task LoadAsync()
+    {
+        _type = await Slots.GetTypeAsync(Id);
+        _rules = [.. _type.Rules.OrderBy(r => r.StartTime).Select(r => new Window { Day = r.DayOfWeek, Start = r.StartTime, End = r.EndTime })];
+        (_form.Name, _form.Slug, _form.Description, _form.Location) = (_type.Name, _type.Slug, _type.Description, _type.Location);
+        (_form.Duration, _form.Buffer, _form.MinNotice, _form.MaxDays) = (_type.DurationMinutes, _type.BufferMinutes, _type.MinNoticeMinutes, _type.MaxDaysAhead);
+        (_form.TimeZone, _form.Active) = (_type.TimeZoneId, _type.IsActive);
+    }
+
+    private Task SaveRulesAsync() => RunAsync(async () =>
+    {
+        await Slots.SetRulesAsync(Id, [.. _rules.Select(r => (r.Day, r.Start, r.End))]);
+        await LoadAsync();
+    }, "Availability saved.");
+
+    private Task SaveSettingsAsync() => RunAsync(async () =>
+    {
+        await Slots.UpdateTypeAsync(Id, _form.Name, _form.Slug, _form.Description, _form.Location,
+            _form.Duration, _form.Buffer, _form.MinNotice, _form.MaxDays, _form.TimeZone, _form.Active);
+        await LoadAsync();
+    }, "Settings saved.");
+
+    private Task DeleteAsync() => RunAsync(async () =>
+    {
+        await Slots.DeleteTypeAsync(Id);
+        Navigation.NavigateTo("slotbook");
+    });
+
+    private sealed class Window
+    {
+        public DayOfWeek Day { get; set; }
+        public TimeOnly Start { get; set; }
+        public TimeOnly End { get; set; }
+    }
+
+    private sealed class SettingsForm
+    {
+        public string Name { get; set; } = "";
+        public string Slug { get; set; } = "";
+        public string? Description { get; set; }
+        public string? Location { get; set; }
+        public int Duration { get; set; }
+        public int Buffer { get; set; }
+        public int MinNotice { get; set; }
+        public int MaxDays { get; set; }
+        public string TimeZone { get; set; } = "UTC";
+        public bool Active { get; set; }
+    }
+}

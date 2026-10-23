@@ -1,3 +1,4 @@
+using System.Data;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -42,6 +43,20 @@ public static class ModuleDatabaseExtensions
             .ConfigureWarnings(w => w.Log(
                 (CoreEventId.SaveChangesFailed, LogLevel.Debug),
                 (RelationalEventId.CommandError, LogLevel.Debug)));
+
+    /// <summary>
+    /// Runs <paramref name="work"/> in a transaction inside the retrying execution strategy (required when
+    /// EnableRetryOnFailure is on). On a transient failure the whole unit is retried with a clean change tracker.
+    /// </summary>
+    public static Task InTransactionAsync(this DbContext db, Func<Task> work,
+        IsolationLevel isolation = IsolationLevel.ReadCommitted, CancellationToken cancellationToken = default) =>
+        db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            db.ChangeTracker.Clear();
+            await using var tx = await db.Database.BeginTransactionAsync(isolation, cancellationToken);
+            await work();
+            await tx.CommitAsync(cancellationToken);
+        });
 
     // 2601: duplicate key in unique index; 2627: unique/primary key constraint violation.
     public static bool IsUniqueViolation(this DbUpdateException ex) =>

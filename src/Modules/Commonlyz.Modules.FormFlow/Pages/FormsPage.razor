@@ -1,0 +1,64 @@
+@page "/formflow"
+@inherits ModulePage
+@inject FormFlowService Forms
+@inject NavigationManager Navigation
+
+<PageHeader Title="FormFlow" Subtitle="Conversational forms, one question at a time. Public at /f/{link-name}." />
+<Alerts Error="@Error" Success="@Success" />
+
+<section class="card">
+    <h2>New form</h2>
+    <EditForm Model="_form" OnSubmit="CreateAsync" class="form-row">
+        <label class="field wide"><span>Title</span><InputText @bind-Value="_form.Title" placeholder="Client intake" required /></label>
+        <label class="field"><span>Link name</span><InputText @bind-Value="_form.Slug" placeholder="intake" required /></label>
+        <button class="btn primary" disabled="@Busy"><Icon Name="plus" /> Create</button>
+    </EditForm>
+</section>
+
+<section class="card">
+    @if (_forms.Count == 0)
+    {
+        <EmptyState Message="No forms yet." IconName="form" />
+    }
+    else
+    {
+        <table>
+            <thead><tr><th>Form</th><th>Public link</th><th>Status</th><th class="num">Responses</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var (form, responses) in _forms)
+                {
+                    <tr>
+                        <td><a href="@($"formflow/{form.Id}")">@form.Title</a></td>
+                        <td class="mono small"><a href="@($"f/{form.Slug}")" target="_blank">/f/@form.Slug</a></td>
+                        <td>
+                            @if (form.PublishedVersionId is null) { <span class="badge">draft</span> }
+                            else if (form.IsOpen) { <span class="badge ok">open</span> }
+                            else { <span class="badge warn">closed</span> }
+                        </td>
+                        <td class="num">@responses</td>
+                        <td class="actions"><a class="btn sm" href="@($"formflow/{form.Id}/responses")">Responses</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+@code {
+    private IReadOnlyList<(Data.Form Form, int Responses)> _forms = [];
+    private readonly NewForm _form = new();
+
+    protected override async Task OnInitializedAsync() => _forms = await Forms.ListFormsAsync();
+
+    private Task CreateAsync() => RunAsync(async () =>
+    {
+        var id = await Forms.CreateFormAsync(_form.Title, _form.Slug);
+        Navigation.NavigateTo($"formflow/{id}");
+    });
+
+    private sealed class NewForm
+    {
+        public string Title { get; set; } = "";
+        public string Slug { get; set; } = "";
+    }
+}

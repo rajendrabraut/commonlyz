@@ -1,0 +1,92 @@
+@page "/clientcollect/{Id:int}"
+@inherits ModulePage
+@inject ClientCollectService Collect
+@inject NavigationManager Navigation
+
+@if (_data is null)
+{
+    <Alerts Error="@Error" />
+}
+else
+{
+    var (request, files) = _data.Value;
+    <PageHeader Title="@request.Title" Subtitle="@($"{request.Client?.Name} · {request.Client?.Email} · {request.Status}")">
+        <a class="btn" href="clientcollect"><Icon Name="left" /> Requests</a>
+        <button class="btn" @onclick="RegenerateAsync">New client link</button>
+        <button class="btn" @onclick="ToggleArchiveAsync">@(request.Status == RequestStatus.Archived ? "Unarchive" : "Archive")</button>
+    </PageHeader>
+    <Alerts Error="@Error" Success="@Success" />
+    @if (_link is not null)
+    {
+        <div class="alert success" style="display:block">New link (the old one no longer works): <input readonly value="@_link" style="margin-top:6px" /></div>
+    }
+    @if (request.Message is not null) { <p class="muted">@request.Message</p> }
+
+    @foreach (var item in request.Items)
+    {
+        <section class="card">
+            <div class="row between">
+                <h3>@(item.Ordinal + 1). @item.Prompt</h3>
+                <StatusBadge Status="item.Status" />
+            </div>
+            @if (item.Kind == ItemKind.Text)
+            {
+                @if (item.TextAnswer is not null) { <blockquote class="answer">@item.TextAnswer</blockquote> }
+                else { <p class="muted">No answer yet.</p> }
+            }
+            else
+            {
+                var itemFiles = files.GetValueOrDefault(item.Id) ?? [];
+                @if (itemFiles.Count == 0) { <p class="muted">No files yet.</p> }
+                <ul class="list">
+                    @foreach (var f in itemFiles)
+                    {
+                        <li class="row"><Icon Name="file" /><a class="grow" href="@($"clientcollect/files/{f.Id}")">@f.FileName</a><span class="muted small">@Format.Bytes(f.SizeBytes) · @Format.DateTime(f.UploadedUtc)</span></li>
+                    }
+                </ul>
+            }
+            @if (item.Status is ItemStatus.Submitted or ItemStatus.ChangesRequested)
+            {
+                <div class="row" style="margin-top:10px">
+                    <button class="btn primary sm" @onclick="() => ReviewAsync(item.Id, true)"><Icon Name="check" Size="16" /> Accept</button>
+                    <input class="grow" placeholder="What needs changing?" @bind="_comments[item.Id]" />
+                    <button class="btn sm" @onclick="() => ReviewAsync(item.Id, false)">Request changes</button>
+                </div>
+            }
+            @if (item.ReviewComment is not null) { <p class="small warning-text">You asked: “@item.ReviewComment”</p> }
+        </section>
+    }
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private (CollectRequest Request, IReadOnlyDictionary<int, IReadOnlyList<FileInfoView>> Files)? _data;
+    private readonly Dictionary<int, string?> _comments = [];
+    private string? _link;
+
+    protected override Task OnParametersSetAsync() => RunAsync(LoadAsync);
+
+    private async Task LoadAsync()
+    {
+        _data = await Collect.GetRequestAsync(Id);
+        foreach (var item in _data.Value.Request.Items)
+            _comments.TryAdd(item.Id, null);
+    }
+
+    private Task ReviewAsync(int itemId, bool accept) => RunAsync(async () =>
+    {
+        await Collect.ReviewAsync(itemId, accept, _comments.GetValueOrDefault(itemId));
+        _comments[itemId] = null;
+        await LoadAsync();
+    }, accept ? "Accepted." : "Changes requested.");
+
+    private Task RegenerateAsync() => RunAsync(async () =>
+        _link = Navigation.BaseUri + "portal/" + await Collect.RegenerateLinkAsync(Id));
+
+    private Task ToggleArchiveAsync() => RunAsync(async () =>
+    {
+        await Collect.SetArchivedAsync(Id, _data!.Value.Request.Status != RequestStatus.Archived);
+        await LoadAsync();
+    });
+}

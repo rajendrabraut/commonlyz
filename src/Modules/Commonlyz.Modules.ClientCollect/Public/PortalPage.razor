@@ -1,0 +1,119 @@
+@page "/portal/{Token}"
+@inject ClientCollectService Collect
+
+@if (!_loaded)
+{
+    <p class="muted center">Loading…</p>
+}
+else if (_data is null)
+{
+    <PageTitle>Link not valid</PageTitle>
+    <div class="card center"><h1>This link isn't valid</h1><p class="muted">It may have been replaced or the request is closed. Ask for a new link.</p></div>
+}
+else
+{
+    var (request, files) = _data.Value;
+    var done = request.Items.Count(i => i.Status is ItemStatus.Submitted or ItemStatus.Accepted);
+    <PageTitle>@request.Title</PageTitle>
+    <div class="card stack">
+        <h1>@request.Title</h1>
+        <p class="muted">For @request.Client?.Name@(request.DueDate is { } due ? $" · due {Format.Date(due)}" : "")</p>
+        @if (request.Message is not null) { <p>@request.Message</p> }
+        <div class="progress"><span style="width:@((done * 100 / Math.Max(1, request.Items.Count)).ToString(System.Globalization.CultureInfo.InvariantCulture))%"></span></div>
+        <p class="small muted">@done of @request.Items.Count sent@(request.Status == RequestStatus.Complete ? " — all done, thank you!" : "")</p>
+    </div>
+    @if (_error is not null) { <p class="alert error">@_error</p> }
+    @if (_saved is not null) { <p class="alert success">@_saved</p> }
+
+    @foreach (var item in request.Items)
+    {
+        <section class="card stack" style="margin-top:14px">
+            <div class="row between"><h3>@(item.Ordinal + 1). @item.Prompt</h3><StatusBadge Status="item.Status" /></div>
+            @if (item.Status == ItemStatus.ChangesRequested && item.ReviewComment is not null)
+            {
+                <p class="alert warning">Requested change: @item.ReviewComment</p>
+            }
+            @if (item.Status == ItemStatus.Accepted)
+            {
+                <p class="muted small">Accepted — nothing more needed here.</p>
+            }
+            else if (item.Kind == ItemKind.Text)
+            {
+                <textarea rows="4" @bind="_drafts[item.Id]" placeholder="Type your answer"></textarea>
+                <button class="btn primary" @onclick="() => SaveTextAsync(item.Id)" disabled="@_busy">Send answer</button>
+            }
+            else
+            {
+                <ul class="list">
+                    @foreach (var f in files.GetValueOrDefault(item.Id) ?? [])
+                    {
+                        <li class="row"><Icon Name="file" /><span class="grow">@f.FileName</span><span class="muted small">@Format.Bytes(f.SizeBytes)</span>
+                            <button class="btn sm ghost" @onclick="() => DeleteFileAsync(item.Id, f.Id)"><Icon Name="x" Size="14" /></button></li>
+                    }
+                </ul>
+                <label class="dropzone @(_busy ? "busy" : null)">
+                    <InputFile OnChange="e => UploadAsync(item.Id, e)" multiple />
+                    <Icon Name="upload" Size="24" />
+                    <span>@(_busy ? "Uploading…" : $"Click or drop files (up to {Format.Bytes(ClientCollectService.MaxFileBytes)} each)")</span>
+                </label>
+            }
+        </section>
+    }
+}
+
+@code {
+    [Parameter] public string Token { get; set; } = "";
+
+    private (CollectRequest Request, IReadOnlyDictionary<int, IReadOnlyList<FileInfoView>> Files)? _data;
+    private readonly Dictionary<int, string?> _drafts = [];
+    private bool _loaded;
+    private bool _busy;
+    private string? _error;
+    private string? _saved;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadAsync();
+        _loaded = true;
+    }
+
+    private async Task LoadAsync()
+    {
+        _data = await Collect.GetPortalAsync(Token);
+        foreach (var item in _data?.Request.Items ?? [])
+            _drafts.TryAdd(item.Id, item.TextAnswer);
+    }
+
+    private Task SaveTextAsync(int itemId) => RunAsync(() => Collect.SubmitTextAsync(Token, itemId, _drafts[itemId]), "Answer sent.");
+
+    private Task DeleteFileAsync(int itemId, int fileId) => RunAsync(() => Collect.DeleteFileAsync(Token, itemId, fileId), "File removed.");
+
+    private Task UploadAsync(int itemId, InputFileChangeEventArgs e) => RunAsync(async () =>
+    {
+        foreach (var file in e.GetMultipleFiles(ClientCollectService.MaxFilesPerItem))
+        {
+            await using var stream = file.OpenReadStream(ClientCollectService.MaxFileBytes);
+            await Collect.UploadAsync(Token, itemId, file.Name, file.ContentType, stream);
+        }
+    }, "Uploaded.");
+
+    private async Task RunAsync(Func<Task> action, string success)
+    {
+        _busy = true;
+        _error = _saved = null;
+        try
+        {
+            await action();
+            _saved = success;
+        }
+        catch (Exception ex) when (ex is AppException or IOException)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+            await LoadAsync();
+        }
+    }
+}

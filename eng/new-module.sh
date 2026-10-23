@@ -15,10 +15,10 @@ cat > "$dir/Commonlyz.Modules.$name.csproj" <<XML
     <ProjectReference Include="..\..\Commonlyz.Core\Commonlyz.Core.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
+${refs:+  <ItemGroup>
 ${refs}  </ItemGroup>
 
-  <ItemGroup>
+}  <ItemGroup>
     <InternalsVisibleTo Include="Commonlyz.Tests" />
   </ItemGroup>
 

@@ -14,6 +14,10 @@ public static class ModuleCatalog
         new Modules.PixelSqueeze.PixelSqueezeModule(),
         new Modules.DailyJournal.DailyJournalModule(),
         new Modules.SplitShare.SplitShareModule(),
+        new Modules.FormFlow.FormFlowModule(),
+        new Modules.SlotBook.SlotBookModule(),
+        new Modules.StockRoom.StockRoomModule(),
+        new Modules.ClientCollect.ClientCollectModule(),
     ];
 
     public static Assembly[] Assemblies => [.. All.Select(m => m.GetType().Assembly).Distinct()];

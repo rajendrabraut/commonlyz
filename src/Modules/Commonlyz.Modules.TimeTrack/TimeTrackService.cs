@@ -67,10 +67,8 @@ public sealed class TimeTrackService(IDbContextFactory<TimeTrackDb> dbFactory, T
         await using var db = await dbFactory.CreateDbContextAsync();
         await EnsureProjectUsableAsync(db, projectId, currentProjectId: null);
 
-        await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        await db.InTransactionAsync(async () =>
         {
-            db.ChangeTracker.Clear();
-            await using var tx = await db.Database.BeginTransactionAsync();
             var now = clock.UtcNowSeconds();
 
             var running = await db.Entries
@@ -81,7 +79,6 @@ public sealed class TimeTrackService(IDbContextFactory<TimeTrackDb> dbFactory, T
 
             db.Entries.Add(new TimeEntry { UserId = userId, Description = description, ProjectId = projectId, StartUtc = now, UpdatedUtc = now });
             await db.SaveChangesAsync();
-            await tx.CommitAsync();
         });
     }
 

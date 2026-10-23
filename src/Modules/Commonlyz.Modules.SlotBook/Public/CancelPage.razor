@@ -1,0 +1,47 @@
+@page "/book/cancel/{Token}"
+@inject SlotBookService Slots
+
+@if (!_loaded)
+{
+    <p class="muted center">Loading…</p>
+}
+else if (_booking is null)
+{
+    <div class="card center"><h1>Booking not found</h1></div>
+}
+else
+{
+    var (booking, type) = _booking.Value;
+    <PageTitle>Cancel booking</PageTitle>
+    <div class="card center stack">
+        <h1>@type.Name</h1>
+        <p>@Zones.ToLocal(booking.StartUtc, Zones.Get(type.TimeZoneId)).ToString("dddd d MMMM yyyy, HH:mm", System.Globalization.CultureInfo.InvariantCulture) (@type.TimeZoneId)</p>
+        @if (booking.Status == BookingStatus.Cancelled)
+        {
+            <p class="alert success">This booking is cancelled.</p>
+        }
+        else
+        {
+            <button class="btn danger" @onclick="CancelAsync">Cancel this booking</button>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public string Token { get; set; } = "";
+
+    private (Booking Booking, MeetingType Type)? _booking;
+    private bool _loaded;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _booking = await Slots.GetByTokenAsync(Token);
+        _loaded = true;
+    }
+
+    private async Task CancelAsync()
+    {
+        await Slots.CancelByTokenAsync(Token);
+        _booking = await Slots.GetByTokenAsync(Token);
+    }
+}
