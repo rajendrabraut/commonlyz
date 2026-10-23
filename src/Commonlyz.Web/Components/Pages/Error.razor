@@ -1,0 +1,21 @@
+@page "/error"
+@layout PublicLayout
+@using System.Diagnostics
+
+<PageTitle>Error · Commonlyz</PageTitle>
+<div class="auth-card card center">
+    <h1>Something went wrong</h1>
+    <p class="muted">The error has been logged.</p>
+    @if (RequestId is not null)
+    {
+        <p class="muted small">Request ID: <code>@RequestId</code></p>
+    }
+    <a class="btn" href="">Back to dashboard</a>
+</div>
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private string? RequestId => Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}

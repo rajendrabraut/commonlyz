@@ -1,0 +1,180 @@
+@page "/chat"
+@page "/chat/{ChannelId:int}"
+@inherits ModulePage
+@implements IDisposable
+@inject ChatService Chat
+@inject ChatNotifier Notifier
+@inject ICurrentUser CurrentUser
+@inject IUserDirectory Users
+@inject NavigationManager Navigation
+
+<PageTitle>@(_channel is null ? "Chat" : $"#{_channel.Name}") · Commonlyz</PageTitle>
+<Alerts Error="@Error" Success="@Success" />
+
+<div class="chat">
+    <aside class="chat-channels card">
+        <input type="search" placeholder="Search messages" @bind="_query" @bind:event="oninput" @bind:after="SearchAsync" />
+        <h3 class="nav-group" style="padding-left:0">Channels</h3>
+        @foreach (var c in _channels)
+        {
+            <a class="chat-channel @(c.Id == ChannelId ? "active" : null)" href="@($"chat/{c.Id}")">
+                @(c.IsPrivate ? "🔒" : "#") @c.Name
+                @if (_unread.Contains(c.Id)) { <span class="dot" style="background:var(--accent)"></span> }
+            </a>
+        }
+        <details style="margin-top:12px">
+            <summary class="small">+ New channel</summary>
+            <EditForm Model="_new" OnSubmit="CreateChannelAsync" class="stack" style="margin-top:8px">
+                <input placeholder="name" @bind="_new.Name" />
+                <input placeholder="topic (optional)" @bind="_new.Topic" />
+                <label class="check small"><input type="checkbox" @bind="_new.IsPrivate" /> Private</label>
+                @if (_new.IsPrivate)
+                {
+                    @foreach (var u in _people.Where(p => p.Id != _me?.Id))
+                    {
+                        <label class="check small"><input type="checkbox" @bind="_new.Members[u.Id]" /> @u.DisplayName</label>
+                    }
+                }
+                <button class="btn sm primary">Create</button>
+            </EditForm>
+        </details>
+    </aside>
+
+    <section class="chat-main card">
+        @if (_hits is not null)
+        {
+            <div class="row between"><h2>Search results</h2><button class="btn sm ghost" @onclick="() => { _hits = null; _query = null; }">Close</button></div>
+            @if (_hits.Count == 0) { <p class="muted">No messages match.</p> }
+            @foreach (var (m, channelName) in _hits)
+            {
+                <a class="chat-msg" href="@($"chat/{m.ChannelId}")"><strong>@m.AuthorName</strong> <span class="muted small">in #@channelName · @Format.DateTime(m.CreatedUtc)</span><div>@m.Body</div></a>
+            }
+        }
+        else if (_channel is null)
+        {
+            <EmptyState Message="@(_channels.Count == 0 ? "No channels yet. Create #general to get started." : "Pick a channel.")" IconName="message" />
+        }
+        else
+        {
+            <div class="chat-head">
+                <h2>@(_channel.IsPrivate ? "🔒" : "#") @_channel.Name</h2>
+                @if (_channel.Topic is not null) { <span class="muted small">@_channel.Topic</span> }
+            </div>
+            <div class="chat-messages">
+                @if (_messages.Count == ChatService.PageSize) { <button class="btn sm ghost" @onclick="LoadOlderAsync">Load older</button> }
+                @if (_messages.Count == 0) { <p class="muted">No messages yet. Say hello!</p> }
+                @foreach (var view in _messages)
+                {
+                    <MessageItem Message="view.Message" ReplyCount="view.ReplyCount" IsMine="view.Message.AuthorId == _me?.Id"
+                                 OnOpenThread="() => OpenThreadAsync(view.Message.Id)" OnEdit="body => EditAsync(view.Message.Id, body)" OnDelete="() => DeleteAsync(view.Message.Id)" />
+                }
+            </div>
+            <Composer Placeholder="@($"Message #{_channel.Name}")" OnSend="SendAsync" />
+        }
+    </section>
+
+    @if (_thread is not null)
+    {
+        <aside class="chat-thread card">
+            <div class="row between"><h3>Thread</h3><button class="btn sm ghost" @onclick="() => _thread = null"><Icon Name="x" /></button></div>
+            <MessageItem Message="_thread.Value.Root" IsMine="false" />
+            <hr />
+            @foreach (var reply in _thread.Value.Replies)
+            {
+                <MessageItem Message="reply" IsMine="reply.AuthorId == _me?.Id" OnEdit="body => EditAsync(reply.Id, body)" OnDelete="() => DeleteAsync(reply.Id)" />
+            }
+            <Composer Placeholder="Reply…" OnSend="ReplyAsync" />
+        </aside>
+    }
+</div>
+
+@code {
+    [Parameter] public int? ChannelId { get; set; }
+
+    private AppUserInfo? _me;
+    private IReadOnlyList<Channel> _channels = [];
+    private IReadOnlyList<AppUserInfo> _people = [];
+    private Channel? _channel;
+    private List<MessageView> _messages = [];
+    private (Message Root, IReadOnlyList<Message> Replies)? _thread;
+    private readonly HashSet<int> _unread = [];
+    private string? _query;
+    private IReadOnlyList<(Message Message, string ChannelName)>? _hits;
+    private NewChannel _new = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _me = await CurrentUser.GetAsync();
+        _people = await Users.ListAsync();
+        _new = NewChannelForm();
+        Notifier.ChannelChanged += OnChannelChangedAsync;
+    }
+
+    protected override Task OnParametersSetAsync() => RunAsync(async () =>
+    {
+        _channels = await Chat.ChannelsAsync(_me!.Id);
+        _thread = null;
+        _hits = null;
+        var id = ChannelId ?? _channels.FirstOrDefault(c => c.Name == "general")?.Id ?? _channels.FirstOrDefault()?.Id;
+        _channel = id is { } cid ? await Chat.GetChannelAsync(_me.Id, cid) : null;
+        if (_channel is not null)
+        {
+            _unread.Remove(_channel.Id);
+            _messages = [.. await Chat.MessagesAsync(_me.Id, _channel.Id)];
+        }
+    });
+
+    /// <summary>Called from whichever circuit posted; marshal onto this circuit before touching state.</summary>
+    private Task OnChannelChangedAsync(int channelId) => InvokeAsync(async () =>
+    {
+        if (_channel?.Id == channelId)
+        {
+            _messages = [.. await Chat.MessagesAsync(_me!.Id, channelId)];
+            if (_thread is { } t)
+                _thread = await Chat.ThreadAsync(_me.Id, t.Root.Id);
+        }
+        else if (_channels.Any(c => c.Id == channelId))
+        {
+            _unread.Add(channelId);
+        }
+        StateHasChanged();
+    });
+
+    private async Task LoadOlderAsync()
+    {
+        var older = await Chat.MessagesAsync(_me!.Id, _channel!.Id, _messages.FirstOrDefault()?.Message.Id);
+        _messages.InsertRange(0, older);
+    }
+
+    private Task SendAsync(string body) => RunAsync(() => Chat.PostAsync(_me!, _channel!.Id, body));
+
+    private Task ReplyAsync(string body) => RunAsync(() => Chat.PostAsync(_me!, _channel!.Id, body, _thread!.Value.Root.Id));
+
+    private Task EditAsync(long id, string body) => RunAsync(() => Chat.EditAsync(_me!.Id, id, body));
+
+    private Task DeleteAsync(long id) => RunAsync(() => Chat.DeleteAsync(_me!.Id, id));
+
+    private Task OpenThreadAsync(long rootId) => RunAsync(async () => _thread = await Chat.ThreadAsync(_me!.Id, rootId));
+
+    private async Task SearchAsync() =>
+        _hits = string.IsNullOrWhiteSpace(_query) ? null : await Chat.SearchAsync(_me!.Id, _query);
+
+    private Task CreateChannelAsync() => RunAsync(async () =>
+    {
+        var id = await Chat.CreateChannelAsync(_me!.Id, _new.Name, _new.Topic, _new.IsPrivate, _new.Members.Where(m => m.Value).Select(m => m.Key));
+        _new = NewChannelForm();
+        Navigation.NavigateTo($"chat/{id}");
+    });
+
+    private NewChannel NewChannelForm() => new() { Members = _people.ToDictionary(p => p.Id, _ => false) };
+
+    public void Dispose() => Notifier.ChannelChanged -= OnChannelChangedAsync;
+
+    private sealed class NewChannel
+    {
+        public string Name { get; set; } = "";
+        public string? Topic { get; set; }
+        public bool IsPrivate { get; set; }
+        public Dictionary<string, bool> Members { get; set; } = [];
+    }
+}

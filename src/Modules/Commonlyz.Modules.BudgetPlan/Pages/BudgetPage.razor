@@ -1,0 +1,90 @@
+@page "/budget"
+@inherits ModulePage
+@inject BudgetService Budget
+@inject TimeProvider Clock
+
+<PageHeader Title="Budget" Subtitle="@_month.ToString("MMMM yyyy", System.Globalization.CultureInfo.InvariantCulture)">
+    <div class="btn-group">
+        <button class="btn" @onclick="() => MoveAsync(-1)"><Icon Name="left" /></button>
+        <button class="btn" @onclick="() => MoveAsync(0)">This month</button>
+        <button class="btn" @onclick="() => MoveAsync(1)"><Icon Name="right" /></button>
+    </div>
+    <a class="btn" href="budget/accounts">Accounts</a>
+    <a class="btn" href="budget/categories">Categories</a>
+</PageHeader>
+<Alerts Error="@Error" Success="@Success" />
+
+@if (_view is not null)
+{
+    <div class="rta @(_view.ReadyToAssign < 0 ? "over" : _view.ReadyToAssign == 0 ? "zero" : null)">
+        <span class="stat-label">Ready to assign</span>
+        <span class="stat-value mono">@Format.Money(_view.ReadyToAssign)</span>
+        <span class="small">@(_view.ReadyToAssign < 0 ? "You've assigned more than you have. Take money back from a category." : _view.ReadyToAssign == 0 ? "Every unit has a job." : "Give this money a job below.")</span>
+    </div>
+
+    @if (_view.Groups.Count == 0)
+    {
+        <section class="card"><EmptyState Message="No categories yet." IconName="wallet"><button class="btn primary" @onclick="SeedAsync">Create starter categories</button></EmptyState></section>
+    }
+    else
+    {
+        <section class="card">
+            <div class="table-wrap">
+                <table class="budget-table">
+                    <thead><tr><th>Category</th><th class="num">Assigned</th><th class="num">Activity</th><th class="num">Available</th></tr></thead>
+                    @foreach (var group in _view.Groups)
+                    {
+                        <tbody>
+                            <tr class="budget-group"><td colspan="4">@group.Group.Name</td></tr>
+                            @foreach (var line in group.Lines.Where(l => !l.Category.IsHidden))
+                            {
+                                <tr>
+                                    <td>@line.Category.Name</td>
+                                    <td class="num">
+                                        <input class="money-input" inputmode="decimal" value="@Format.MoneyInput(line.Assigned)"
+                                               @onchange="e => AssignAsync(line.Category.Id, e.Value?.ToString())" />
+                                    </td>
+                                    <td class="num muted">@Format.Money(line.Activity)</td>
+                                    <td class="num"><span class="pill @(line.Available < 0 ? "neg" : line.Available == 0 ? "zero" : "pos")">@Format.Money(line.Available)</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    }
+                </table>
+            </div>
+        </section>
+    }
+}
+
+@code {
+    private DateOnly _month;
+    private BudgetMonth? _view;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _month = BudgetService.MonthOf(DateOnly.FromDateTime(Clock.GetUtcNow().UtcDateTime));
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync() => _view = await Budget.GetMonthAsync(_month);
+
+    private Task MoveAsync(int delta) => RunAsync(async () =>
+    {
+        _month = delta == 0 ? BudgetService.MonthOf(DateOnly.FromDateTime(Clock.GetUtcNow().UtcDateTime)) : _month.AddMonths(delta);
+        await LoadAsync();
+    });
+
+    private Task AssignAsync(int categoryId, string? value) => RunAsync(async () =>
+    {
+        long amount = 0;
+        AppException.ThrowIf(!string.IsNullOrWhiteSpace(value) && !Format.TryParseMoney(value, out amount), "Enter an amount like 250 or 99.50.");
+        await Budget.AssignAsync(categoryId, _month, amount);
+        await LoadAsync();
+    });
+
+    private Task SeedAsync() => RunAsync(async () =>
+    {
+        await Budget.SeedStarterCategoriesAsync();
+        await LoadAsync();
+    });
+}

@@ -1,0 +1,21 @@
+@* A real <form>: Enter submits natively, so no key-handling script is needed. *@
+<form class="chat-composer" @onsubmit="SendAsync">
+    <input placeholder="@Placeholder" @bind="_text" @bind:event="oninput" maxlength="@Data.Message.MaxBodyLength" autocomplete="off" />
+    <button type="submit" class="btn primary" disabled="@string.IsNullOrWhiteSpace(_text)">Send</button>
+</form>
+
+@code {
+    [Parameter] public string Placeholder { get; set; } = "Message";
+    [Parameter] public EventCallback<string> OnSend { get; set; }
+
+    private string _text = "";
+
+    private async Task SendAsync()
+    {
+        var text = _text.Trim();
+        if (text.Length == 0)
+            return;
+        _text = "";
+        await OnSend.InvokeAsync(text);
+    }
+}

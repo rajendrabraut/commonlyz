@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <UserSecretsId>commonlyz-web</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" />
+    <PackageReference Include="Serilog.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Commonlyz.Core\Commonlyz.Core.csproj" />
+    <ProjectReference Include="..\Modules\Commonlyz.Modules.BudgetPlan\Commonlyz.Modules.BudgetPlan.csproj" />
+    <ProjectReference Include="..\Modules\Commonlyz.Modules.StatusBoard\Commonlyz.Modules.StatusBoard.csproj" />
+    <ProjectReference Include="..\Modules\Commonlyz.Modules.TeamChat\Commonlyz.Modules.TeamChat.csproj" />
+    <ProjectReference Include="..\Modules\Commonlyz.Modules.TeamWiki\Commonlyz.Modules.TeamWiki.csproj" />
+    <ProjectReference Include="..\Modules\Commonlyz.Modules.TaskBoard\Commonlyz.Modules.TaskBoard.csproj" />
+    <ProjectReference Include="..\Modules\Commonlyz.Modules.ClientCollect\Commonlyz.Modules.ClientCollect.csproj" />
+    <ProjectReference Include="..\Modules\Commonlyz.Modules.StockRoom\Commonlyz.Modules.StockRoom.csproj" />
+    <ProjectReference Include="..\Modules\Commonlyz.Modules.SlotBook\Commonlyz.Modules.SlotBook.csproj" />
+    <ProjectReference Include="..\Modules\Commonlyz.Modules.FormFlow\Commonlyz.Modules.FormFlow.csproj" />
+    <ProjectReference Include="..\Modules\Commonlyz.Modules.SplitShare\Commonlyz.Modules.SplitShare.csproj" />
+    <ProjectReference Include="..\Modules\Commonlyz.Modules.DailyJournal\Commonlyz.Modules.DailyJournal.csproj" />
+    <ProjectReference Include="..\Modules\Commonlyz.Modules.PixelSqueeze\Commonlyz.Modules.PixelSqueeze.csproj" />
+    <ProjectReference Include="..\Modules\Commonlyz.Modules.LinkHub\Commonlyz.Modules.LinkHub.csproj" />
+    <ProjectReference Include="..\Modules\Commonlyz.Modules.TimeTrack\Commonlyz.Modules.TimeTrack.csproj" />
+    <ProjectReference Include="..\Modules\Commonlyz.Modules.ShortLink\Commonlyz.Modules.ShortLink.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Commonlyz.Tests" />
+  </ItemGroup>
+
+</Project>

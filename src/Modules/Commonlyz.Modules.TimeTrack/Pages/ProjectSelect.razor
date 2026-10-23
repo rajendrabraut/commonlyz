@@ -1,0 +1,17 @@
+@* Project picker; "(none)" maps to null. *@
+<select value="@(Value?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "")" @onchange="OnChangeAsync">
+    <option value="">(no project)</option>
+    @foreach (var project in Projects)
+    {
+        <option value="@project.Id">@project.Name@(project.ArchivedUtc is null ? "" : " (archived)")</option>
+    }
+</select>
+
+@code {
+    [Parameter] public int? Value { get; set; }
+    [Parameter] public EventCallback<int?> ValueChanged { get; set; }
+    [Parameter] public IReadOnlyList<Data.Project> Projects { get; set; } = [];
+
+    private Task OnChangeAsync(ChangeEventArgs e) =>
+        ValueChanged.InvokeAsync(int.TryParse(e.Value?.ToString(), out var id) ? id : null);
+}

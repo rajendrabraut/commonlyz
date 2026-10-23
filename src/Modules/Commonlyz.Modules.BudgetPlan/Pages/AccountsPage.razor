@@ -1,0 +1,71 @@
+@page "/budget/accounts"
+@inherits ModulePage
+@inject BudgetService Budget
+@inject TimeProvider Clock
+@inject NavigationManager Navigation
+
+<PageHeader Title="Accounts" Subtitle="@($"Net worth {Format.Money(_accounts.Sum(a => a.Balance))}")">
+    <a class="btn" href="budget"><Icon Name="left" /> Budget</a>
+</PageHeader>
+<Alerts Error="@Error" Success="@Success" />
+
+<div class="with-aside">
+    <section class="card">
+        @if (_accounts.Count == 0) { <EmptyState Message="Add the accounts you spend from: checking, savings, cash, credit cards." IconName="wallet" /> }
+        else
+        {
+            <table>
+                <thead><tr><th>Account</th><th>Type</th><th class="num">Cleared</th><th class="num">Balance</th></tr></thead>
+                <tbody>
+                    @foreach (var a in _accounts)
+                    {
+                        <tr>
+                            <td><a href="@($"budget/accounts/{a.Account.Id}")">@a.Account.Name</a></td>
+                            <td class="muted">@a.Account.Type</td>
+                            <td class="num muted">@Format.Money(a.Cleared)</td>
+                            <td class="num @(a.Balance < 0 ? "danger-text" : null)"><strong>@Format.Money(a.Balance)</strong></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+
+    <aside>
+        <section class="card">
+            <h2>New account</h2>
+            <EditForm Model="_form" OnSubmit="CreateAsync" class="stack">
+                <label class="field"><span>Name</span><InputText @bind-Value="_form.Name" placeholder="Main checking" /></label>
+                <label class="field"><span>Type</span>
+                    <InputSelect @bind-Value="_form.Type">
+                        @foreach (var t in Enum.GetValues<AccountType>()) { <option value="@t">@t</option> }
+                    </InputSelect>
+                </label>
+                <label class="field"><span>Current balance</span><InputText @bind-Value="_form.Balance" inputmode="decimal" placeholder="0.00 (negative for card debt)" /></label>
+                <button class="btn primary" disabled="@Busy">Add account</button>
+            </EditForm>
+        </section>
+    </aside>
+</div>
+
+@code {
+    private IReadOnlyList<AccountBalance> _accounts = [];
+    private NewAccount _form = new();
+
+    protected override async Task OnInitializedAsync() => _accounts = await Budget.AccountsAsync();
+
+    private Task CreateAsync() => RunAsync(async () =>
+    {
+        long balance = 0;
+        AppException.ThrowIf(!string.IsNullOrWhiteSpace(_form.Balance) && !Format.TryParseMoney(_form.Balance, out balance), "Enter a balance like 1250.00.");
+        var id = await Budget.CreateAccountAsync(_form.Name, _form.Type, balance, DateOnly.FromDateTime(Clock.GetUtcNow().UtcDateTime));
+        Navigation.NavigateTo($"budget/accounts/{id}");
+    });
+
+    private sealed class NewAccount
+    {
+        public string Name { get; set; } = "";
+        public AccountType Type { get; set; } = AccountType.Checking;
+        public string? Balance { get; set; }
+    }
+}

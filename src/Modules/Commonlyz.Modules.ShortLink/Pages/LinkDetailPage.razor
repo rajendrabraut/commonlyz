@@ -1,0 +1,82 @@
+@page "/shortlink/{Id:int}"
+@inherits ModulePage
+@inject ShortLinkService Links
+@inject NavigationManager Navigation
+
+@if (_link is null)
+{
+    <Alerts Error="@Error" />
+}
+else
+{
+    <PageHeader Title="@($"/{_link.Slug}")" Subtitle="@ShortUrl">
+        <a class="btn" href="shortlink"><Icon Name="left" /> All links</a>
+        <a class="btn" href="@ShortUrl" target="_blank"><Icon Name="external" /> Open</a>
+    </PageHeader>
+    <Alerts Error="@Error" Success="@Success" />
+
+    <section class="card">
+        <h2>Settings</h2>
+        <EditForm Model="_form" OnValidSubmit="SaveAsync" class="form-row">
+            <label class="field wide"><span>Destination URL</span><InputText @bind-Value="_form.Url" type="url" required /></label>
+            <label class="field narrow"><span>Expires (UTC)</span><InputDate @bind-Value="_form.Expires" /></label>
+            <button class="btn primary" disabled="@Busy">Save</button>
+        </EditForm>
+        <p class="muted small">Created @Format.DateTime(_link.CreatedUtc) · @(_link.IsActive ? "Active" : "Disabled") · @Format.Number(_link.ClickCount) clicks all time</p>
+    </section>
+
+    <section class="card">
+        <h2>Clicks — last 30 days (UTC)</h2>
+        @if (_stats is not null)
+        {
+            <BarChart Items="_stats.Daily.Select(d => new BarChart.Bar(Format.Date(d.Date), d.Count)).ToList()" Label="Clicks per day" />
+            @if (_stats.TopReferrers.Count > 0)
+            {
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Top referrers</th><th class="num">Clicks</th></tr></thead>
+                        <tbody>
+                            @foreach (var (referrer, count) in _stats.TopReferrers)
+                            {
+                                <tr><td class="truncate">@referrer</td><td class="num">@count</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        }
+    </section>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private Link? _link;
+    private ClickStats? _stats;
+    private readonly Form _form = new();
+
+    private string ShortUrl => Navigation.BaseUri.TrimEnd('/') + ShortLinkModule.PublicPrefix + _link?.Slug;
+
+    protected override Task OnParametersSetAsync() => RunAsync(LoadAsync);
+
+    private async Task LoadAsync()
+    {
+        _link = await Links.GetAsync(Id);
+        _form.Url = _link.DestinationUrl;
+        _form.Expires = _link.ExpiresUtc is { } e ? DateOnly.FromDateTime(e) : null;
+        _stats = await Links.GetStatsAsync(Id);
+    }
+
+    private Task SaveAsync() => RunAsync(async () =>
+    {
+        var expires = _form.Expires?.ToDateTime(new TimeOnly(23, 59, 59), DateTimeKind.Utc);
+        await Links.UpdateAsync(Id, _form.Url, expires, new Uri(Navigation.BaseUri).Host);
+        await LoadAsync();
+    }, "Saved.");
+
+    private sealed class Form
+    {
+        public string Url { get; set; } = "";
+        public DateOnly? Expires { get; set; }
+    }
+}

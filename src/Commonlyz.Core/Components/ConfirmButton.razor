@@ -1,0 +1,41 @@
+@* Two-step destructive action without a JS confirm() dialog. *@
+@if (_armed)
+{
+    <span class="confirm">
+        <button type="button" class="btn sm danger" @onclick="ConfirmAsync" disabled="@_busy">@ConfirmText</button>
+        <button type="button" class="btn sm ghost" @onclick="() => _armed = false">Cancel</button>
+    </span>
+}
+else
+{
+    <button type="button" class="btn sm ghost @Class" title="@Text" @onclick="() => _armed = true">
+        @if (IconName is not null) { <Icon Name="@IconName" Size="16" /> }
+        @if (!IconOnly) { @Text }
+    </button>
+}
+
+@code {
+    [Parameter] public string Text { get; set; } = "Delete";
+    [Parameter] public string ConfirmText { get; set; } = "Confirm";
+    [Parameter] public string? IconName { get; set; } = "trash";
+    [Parameter] public bool IconOnly { get; set; }
+    [Parameter] public string? Class { get; set; } = "danger-text";
+    [Parameter] public EventCallback OnConfirm { get; set; }
+
+    private bool _armed;
+    private bool _busy;
+
+    private async Task ConfirmAsync()
+    {
+        _busy = true;
+        try
+        {
+            await OnConfirm.InvokeAsync();
+        }
+        finally
+        {
+            _busy = false;
+            _armed = false;
+        }
+    }
+}

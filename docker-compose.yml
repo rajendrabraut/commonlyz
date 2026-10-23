@@ -1,0 +1,37 @@
+# Everything:   docker compose up --build        → http://localhost:8080
+# Dev database: docker compose up -d sql         → then `dotnet run --project src/Commonlyz.Web`
+services:
+  sql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-Your_strong_Passw0rd}
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqldata:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  app:
+    build: .
+    depends_on:
+      sql:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      ConnectionStrings__Default: "Server=sql,1433;Database=Commonlyz;User Id=sa;Password=${MSSQL_SA_PASSWORD:-Your_strong_Passw0rd};TrustServerCertificate=True"
+      Database__MigrateOnStartup: "true"
+      # First admin, created only when the database has no users. Change the password after signing in.
+      Admin__Email: ${ADMIN_EMAIL:-admin@commonlyz.local}
+      Admin__Password: ${ADMIN_PASSWORD:-ChangeMe123!}
+    restart: unless-stopped
+
+volumes:
+  sqldata:

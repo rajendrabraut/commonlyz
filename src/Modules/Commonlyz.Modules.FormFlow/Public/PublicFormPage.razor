@@ -1,0 +1,206 @@
+@page "/f/{Slug}"
+@inject FormFlowService Forms
+
+@if (!_loaded)
+{
+    <p class="muted center">Loading…</p>
+}
+else if (_form is null)
+{
+    <PageTitle>Form closed</PageTitle>
+    <div class="card center"><h1>This form isn't available</h1><p class="muted">It may be closed or the link is wrong.</p></div>
+}
+else if (_submitted)
+{
+    <PageTitle>Thank you</PageTitle>
+    <div class="card center ff-card"><Icon Name="check" Size="36" Class="success-text" /><h1>Thank you!</h1><p class="muted">Your response has been recorded.</p></div>
+}
+else
+{
+    <PageTitle>@_form.Title</PageTitle>
+    <div class="ff-progress"><span style="width:@ProgressWidth"></span></div>
+
+    <div class="card ff-card">
+        @if (_step < 0)
+        {
+            <h1>@_form.Title</h1>
+            @if (_form.Description is not null) { <p class="muted">@_form.Description</p> }
+            <p class="muted small">@_form.Questions.Count questions · takes about @Math.Max(1, _form.Questions.Count / 3) min</p>
+            <button class="btn primary" @onclick="() => _step = 0">Start <Icon Name="right" /></button>
+        }
+        else
+        {
+            var q = _form.Questions[_step];
+            <span class="muted small">Question @(_step + 1) of @_form.Questions.Count</span>
+            <h2 class="ff-prompt">@q.Prompt@if (q.Required) { <span class="danger-text"> *</span> }</h2>
+            @if (q.Help is not null) { <p class="muted">@q.Help</p> }
+
+            <div class="ff-input" @onkeydown="OnKeyAsync">
+                @switch (q.Type)
+                {
+                    case QuestionType.LongText:
+                        <textarea rows="5" @bind="Answer" @bind:event="oninput" autofocus></textarea>
+                        break;
+                    case QuestionType.Email:
+                        <input type="email" @bind="Answer" @bind:event="oninput" autofocus />
+                        break;
+                    case QuestionType.Number:
+                        <input type="number" step="any" value="@Answer" @oninput="e => Answer = e.Value?.ToString()" autofocus />
+                        break;
+                    case QuestionType.Date:
+                        <input type="date" value="@Answer" @onchange="e => Answer = e.Value?.ToString()" autofocus />
+                        break;
+                    case QuestionType.YesNo:
+                        <div class="ff-choices">
+                            @foreach (var option in new[] { "Yes", "No" })
+                            {
+                                <button type="button" class="btn @(Answer == option ? "active" : null)" @onclick="() => ChooseAsync(option)">@option</button>
+                            }
+                        </div>
+                        break;
+                    case QuestionType.SingleChoice:
+                        <div class="ff-choices">
+                            @foreach (var option in q.Options)
+                            {
+                                <button type="button" class="btn @(Answer == option ? "active" : null)" @onclick="() => ChooseAsync(option)">@option</button>
+                            }
+                        </div>
+                        break;
+                    case QuestionType.MultiChoice:
+                        <div class="ff-choices">
+                            @foreach (var option in q.Options)
+                            {
+                                <button type="button" class="btn @(Selected.Contains(option) ? "active" : null)" @onclick="() => Toggle(option)">@option</button>
+                            }
+                        </div>
+                        break;
+                    default:
+                        <input type="text" @bind="Answer" @bind:event="oninput" autofocus />
+                        break;
+                }
+            </div>
+
+            @* Honeypot: invisible to people, irresistible to bots. *@
+            <input class="ff-hp" tabindex="-1" autocomplete="off" aria-hidden="true" @bind="_honeypot" />
+
+            @if (_error is not null) { <p class="alert error">@_error</p> }
+
+            <div class="row between" style="margin-top:18px">
+                <button class="btn ghost" @onclick="Back" disabled="@(_step == 0)"><Icon Name="left" /> Back</button>
+                @if (_step == _form.Questions.Count - 1)
+                {
+                    <button class="btn primary" @onclick="SubmitAsync" disabled="@_busy">Submit</button>
+                }
+                else
+                {
+                    <span class="row"><span class="muted small">press Enter ↵</span><button class="btn primary" @onclick="NextAsync">OK <Icon Name="check" /></button></span>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public string Slug { get; set; } = "";
+
+    private PublicForm? _form;
+    private readonly Dictionary<string, string?> _answers = [];
+    private int _step = -1;
+    private bool _loaded;
+    private bool _submitted;
+    private bool _busy;
+    private string? _error;
+    private string? _honeypot;
+
+    private QuestionSnapshot Current => _form!.Questions[_step];
+
+    private string? Answer
+    {
+        get => _answers.GetValueOrDefault(Current.Key);
+        set => _answers[Current.Key] = value;
+    }
+
+    private HashSet<string> Selected => [.. (Answer ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries)];
+
+    private string ProgressWidth => _form is null || _step < 0
+        ? "0%"
+        : $"{(_step * 100 / _form.Questions.Count).ToString(System.Globalization.CultureInfo.InvariantCulture)}%";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _form = await Forms.GetPublicAsync(Slug);
+        _loaded = true;
+    }
+
+    private bool ValidateCurrent()
+    {
+        _error = FormFlowService.ValidateAnswer(Current, Answer);
+        return _error is null;
+    }
+
+    private Task NextAsync()
+    {
+        if (ValidateCurrent() && _step < _form!.Questions.Count - 1)
+            _step++;
+        return Task.CompletedTask;
+    }
+
+    private void Back()
+    {
+        _error = null;
+        if (_step > 0)
+            _step--;
+    }
+
+    private async Task ChooseAsync(string option)
+    {
+        Answer = option;
+        await Task.Delay(150);   // brief visual confirmation before advancing
+        if (_step < _form!.Questions.Count - 1)
+            await NextAsync();
+    }
+
+    private void Toggle(string option)
+    {
+        var selected = Selected;
+        if (!selected.Remove(option))
+            selected.Add(option);
+        Answer = string.Join('\n', Current.Options.Where(selected.Contains));
+    }
+
+    private async Task OnKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key != "Enter" || e.ShiftKey || Current.Type == QuestionType.LongText)
+            return;
+        if (_step == _form!.Questions.Count - 1)
+            await SubmitAsync();
+        else
+            await NextAsync();
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (!ValidateCurrent())
+            return;
+        if (!string.IsNullOrEmpty(_honeypot))
+        {
+            _submitted = true;   // pretend success; don't tell bots they were caught
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await Forms.SubmitAsync(Slug, _answers);
+            _submitted = true;
+        }
+        catch (AppException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

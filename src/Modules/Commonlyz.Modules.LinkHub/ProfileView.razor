@@ -1,0 +1,29 @@
+@* Renders a profile the way visitors see it. Used by the public page and the editor preview. *@
+<div class="linkhub-profile" style="--lh-accent:@Profile.AccentColor">
+    @if (Profile.AvatarUrl is not null)
+    {
+        <img class="linkhub-avatar" src="@Profile.AvatarUrl" alt="" referrerpolicy="no-referrer" />
+    }
+    else
+    {
+        <div class="linkhub-avatar placeholder">@Initials</div>
+    }
+    <h1>@Profile.DisplayName</h1>
+    @if (Profile.Bio is not null)
+    {
+        <p class="muted">@Profile.Bio</p>
+    }
+    <div class="linkhub-links">
+        @foreach (var link in Profile.Links.Where(l => Preview || !l.IsDraft))
+        {
+            <a class="linkhub-link @(link.IsDraft ? "draft" : null)" href="@($"p/{Profile.Handle}/go/{link.Id}")" target="@(Preview ? "_blank" : null)" rel="noopener">@link.Title</a>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Profile Profile { get; set; } = default!;
+    [Parameter] public bool Preview { get; set; }
+
+    private string Initials => string.Concat(Profile.DisplayName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(w => char.ToUpperInvariant(w[0])));
+}

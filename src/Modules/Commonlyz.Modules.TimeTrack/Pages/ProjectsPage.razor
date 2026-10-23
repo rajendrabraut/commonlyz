@@ -1,0 +1,76 @@
+@page "/timetrack/projects"
+@inherits ModulePage
+@inject TimeTrackService Time
+
+<PageHeader Title="Projects" Subtitle="Labels for TimeTrack entries. Archive instead of deleting so history stays intact.">
+    <a class="btn" href="timetrack"><Icon Name="left" /> TimeTrack</a>
+</PageHeader>
+<Alerts Error="@Error" Success="@Success" />
+
+<section class="card">
+    <h2>@(_form.Id is null ? "New project" : "Edit project")</h2>
+    <EditForm Model="_form" OnSubmit="SaveAsync" class="form-row">
+        <label class="field wide"><span>Name</span><InputText @bind-Value="_form.Name" required /></label>
+        <label class="field narrow"><span>Colour</span><input type="color" @bind="_form.Color" /></label>
+        <button class="btn primary" disabled="@Busy">@(_form.Id is null ? "Add" : "Save")</button>
+        @if (_form.Id is not null)
+        {
+            <button type="button" class="btn ghost" @onclick="() => _form = new()">Cancel</button>
+        }
+    </EditForm>
+</section>
+
+<section class="card">
+    @if (_projects.Count == 0)
+    {
+        <EmptyState Message="No projects yet." IconName="clock" />
+    }
+    else
+    {
+        <table>
+            <thead><tr><th>Project</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var p in _projects)
+                {
+                    <tr class="@(p.ArchivedUtc is null ? null : "inactive")">
+                        <td><span class="dot" style="background:@p.ColorHex"></span> @p.Name</td>
+                        <td>@(p.ArchivedUtc is null ? "Active" : "Archived")</td>
+                        <td class="actions">
+                            <button class="btn sm ghost" @onclick="() => _form = new Form { Id = p.Id, Name = p.Name, Color = p.ColorHex }"><Icon Name="edit" Size="16" /></button>
+                            <button class="btn sm ghost" @onclick="() => ArchiveAsync(p)">@(p.ArchivedUtc is null ? "Archive" : "Restore")</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+@code {
+    private IReadOnlyList<Data.Project> _projects = [];
+    private Form _form = new();
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync() => _projects = await Time.ListProjectsAsync(includeArchived: true);
+
+    private Task SaveAsync() => RunAsync(async () =>
+    {
+        await Time.SaveProjectAsync(_form.Id, _form.Name, _form.Color);
+        _form = new();
+        await LoadAsync();
+    }, "Saved.");
+
+    private Task ArchiveAsync(Data.Project p) => RunAsync(async () =>
+    {
+        await Time.SetArchivedAsync(p.Id, p.ArchivedUtc is null);
+        await LoadAsync();
+    });
+
+    private sealed class Form
+    {
+        public int? Id { get; set; }
+        public string Name { get; set; } = "";
+        public string Color { get; set; } = "#3b82f6";
+    }
+}

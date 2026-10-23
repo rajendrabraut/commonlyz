@@ -1,0 +1,14 @@
+<div class="stat-tile">
+    <span class="stat-label">@Label</span>
+    <span class="stat-value">@Value</span>
+    @if (Hint is not null)
+    {
+        <span class="stat-hint">@Hint</span>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+    [Parameter, EditorRequired] public string Value { get; set; } = "";
+    [Parameter] public string? Hint { get; set; }
+}

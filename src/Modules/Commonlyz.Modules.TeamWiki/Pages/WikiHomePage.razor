@@ -1,0 +1,31 @@
+@page "/wiki"
+@inject WikiService Wiki
+
+<PageHeader Title="Wiki" Subtitle="Nested Markdown pages for the team. Every save is kept in the page history." />
+
+<WikiLayout Tree="_tree">
+    <section class="card">
+        <h2>Recently updated</h2>
+        @if (_recent.Count == 0)
+        {
+            <EmptyState Message="No pages yet. Create one from the sidebar." IconName="file" />
+        }
+        <ul class="list">
+            @foreach (var p in _recent)
+            {
+                <li class="row"><a class="grow" href="@($"wiki/{p.Id}")">@p.Title</a><span class="muted small">@p.UpdatedBy · @Format.DateTime(p.UpdatedUtc)</span></li>
+            }
+        </ul>
+    </section>
+</WikiLayout>
+
+@code {
+    private IReadOnlyList<TreeNode> _tree = [];
+    private IReadOnlyList<WikiPage> _recent = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _tree = await Wiki.TreeAsync();
+        _recent = await Wiki.RecentAsync();
+    }
+}

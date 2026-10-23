@@ -1,0 +1,49 @@
+@page "/taskboard"
+@inherits ModulePage
+@inject TaskBoardService Boards
+@inject NavigationManager Navigation
+
+<PageHeader Title="TaskBoard" Subtitle="Kanban boards. Drag cards between columns." />
+<Alerts Error="@Error" Success="@Success" />
+
+<section class="card">
+    <EditForm Model="_form" OnSubmit="CreateAsync" class="form-row">
+        <label class="field wide"><span>New board</span><InputText @bind-Value="_form.Name" placeholder="Website relaunch" /></label>
+        <button class="btn primary" disabled="@Busy"><Icon Name="plus" /> Create</button>
+    </EditForm>
+</section>
+
+@if (_boards.Count == 0)
+{
+    <section class="card"><EmptyState Message="No boards yet." IconName="kanban" /></section>
+}
+else
+{
+    <div class="module-grid" style="margin-top:16px">
+        @foreach (var (board, open) in _boards)
+        {
+            <a class="card module-card" href="@($"taskboard/{board.Id}")">
+                <div class="module-card-head"><span class="module-icon"><Icon Name="kanban" /></span><h3>@board.Name</h3></div>
+                <p class="muted">@open open cards</p>
+            </a>
+        }
+    </div>
+}
+
+@code {
+    private IReadOnlyList<(Board Board, int Open)> _boards = [];
+    private readonly NewBoard _form = new();
+
+    protected override async Task OnInitializedAsync() => _boards = await Boards.ListBoardsAsync();
+
+    private Task CreateAsync() => RunAsync(async () =>
+    {
+        var id = await Boards.CreateBoardAsync(_form.Name);
+        Navigation.NavigateTo($"taskboard/{id}");
+    });
+
+    private sealed class NewBoard
+    {
+        public string Name { get; set; } = "";
+    }
+}

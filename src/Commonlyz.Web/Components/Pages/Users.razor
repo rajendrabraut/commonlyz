@@ -1,0 +1,125 @@
+@page "/users"
+@attribute [Authorize(Roles = Roles.Admin)]
+@inherits ModulePage
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@inject IServiceScopeFactory Scopes
+@inject IUserDirectory Directory
+@inject ICurrentUser CurrentUser
+
+<PageHeader Title="Users" Subtitle="Everyone who can sign in. Admins can manage users; members use the apps." />
+<Alerts Error="@Error" Success="@Success" />
+
+<section class="card">
+    <h2>Add user</h2>
+    <EditForm Model="_new" OnValidSubmit="CreateAsync" class="form-row">
+        <label class="field"><span>Display name</span><InputText @bind-Value="_new.DisplayName" required /></label>
+        <label class="field"><span>Email</span><InputText @bind-Value="_new.Email" type="email" required /></label>
+        <label class="field"><span>Initial password</span><InputText @bind-Value="_new.Password" type="password" required minlength="8" /></label>
+        <label class="check"><InputCheckbox @bind-Value="_new.IsAdmin" /> Admin</label>
+        <button class="btn primary" disabled="@Busy"><Icon Name="plus" /> Add</button>
+    </EditForm>
+</section>
+
+<section class="card">
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var user in _users)
+                {
+                    <tr>
+                        <td>@user.DisplayName</td>
+                        <td>@user.Email</td>
+                        <td><span class="badge">@(user.IsAdmin ? "Admin" : "Member")</span></td>
+                        <td class="actions">
+                            @if (user.Id != _meId)
+                            {
+                                <button class="btn sm ghost" @onclick="() => ToggleAdminAsync(user)">@(user.IsAdmin ? "Make member" : "Make admin")</button>
+                                <ConfirmButton OnConfirm="() => DeleteAsync(user)" />
+                            }
+                            else
+                            {
+                                <span class="muted small">you</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+@code {
+    private IReadOnlyList<AppUserInfo> _users = [];
+    private NewUser _new = new();
+    private string _meId = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _meId = (await CurrentUser.GetAsync()).Id;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync() => _users = await Directory.ListAsync();
+
+    private Task CreateAsync() => RunAsync(async () =>
+    {
+        await WithUsersAsync(async users =>
+        {
+            var user = new AppUser
+            {
+                UserName = _new.Email.Trim(),
+                Email = _new.Email.Trim(),
+                EmailConfirmed = true,
+                DisplayName = Text.Required(_new.DisplayName, "Display name", AppUser.MaxDisplayNameLength),
+            };
+            Check(await users.CreateAsync(user, _new.Password));
+            if (_new.IsAdmin)
+                Check(await users.AddToRoleAsync(user, Roles.Admin));
+        });
+        _new = new();
+        await LoadAsync();
+    }, "User added.");
+
+    private Task ToggleAdminAsync(AppUserInfo info) => RunAsync(async () =>
+    {
+        await WithUsersAsync(async users =>
+        {
+            var user = AppException.NotFound(await users.FindByIdAsync(info.Id), "User");
+            Check(info.IsAdmin ? await users.RemoveFromRoleAsync(user, Roles.Admin) : await users.AddToRoleAsync(user, Roles.Admin));
+        });
+        await LoadAsync();
+    }, "Role updated. It applies the next time they sign in.");
+
+    private Task DeleteAsync(AppUserInfo info) => RunAsync(async () =>
+    {
+        await WithUsersAsync(async users =>
+        {
+            var user = AppException.NotFound(await users.FindByIdAsync(info.Id), "User");
+            Check(await users.DeleteAsync(user));
+        });
+        await LoadAsync();
+    }, "User deleted.");
+
+    // Fresh scope per operation: the circuit lives for hours and a long-lived DbContext would go stale.
+    private async Task WithUsersAsync(Func<UserManager<AppUser>, Task> action)
+    {
+        await using var scope = Scopes.CreateAsyncScope();
+        await action(scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>());
+    }
+
+    private static void Check(IdentityResult result)
+    {
+        if (!result.Succeeded)
+            throw new AppException(string.Join(" ", result.Errors.Select(e => e.Description)));
+    }
+
+    private sealed class NewUser
+    {
+        public string DisplayName { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+        public bool IsAdmin { get; set; }
+    }
+}

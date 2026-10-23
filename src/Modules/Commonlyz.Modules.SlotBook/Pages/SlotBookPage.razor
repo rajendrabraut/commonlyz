@@ -1,0 +1,108 @@
+@page "/slotbook"
+@inherits ModulePage
+@inject SlotBookService Slots
+@inject NavigationManager Navigation
+
+<PageHeader Title="SlotBook" Subtitle="Meeting types and upcoming bookings. Guests book at /book/{link-name}." />
+<Alerts Error="@Error" Success="@Success" />
+
+<div class="with-aside">
+    <section class="card">
+        <div class="row between">
+            <h2>Upcoming bookings</h2>
+            <label class="check small"><input type="checkbox" @bind="_showCancelled" @bind:after="LoadAsync" /> Show cancelled</label>
+        </div>
+        @if (_bookings.Count == 0)
+        {
+            <EmptyState Message="No upcoming bookings." IconName="calendar" />
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>When</th><th>Guest</th><th>Meeting</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var (b, typeName, tz) in _bookings)
+                        {
+                            <tr class="@(b.Status == BookingStatus.Cancelled ? "inactive" : null)">
+                                <td class="nowrap">@Zones.ToLocal(b.StartUtc, Zones.Get(tz)).ToString("ddd d MMM HH:mm", System.Globalization.CultureInfo.InvariantCulture) <span class="muted small">@tz</span></td>
+                                <td>@b.GuestName <div class="muted small">@b.GuestEmail</div>@if (b.Notes is not null) { <div class="small">“@b.Notes”</div> }</td>
+                                <td>@typeName</td>
+                                <td class="actions">
+                                    @if (b.Status == BookingStatus.Confirmed) { <ConfirmButton Text="Cancel" ConfirmText="Cancel booking" IconName="x" OnConfirm="() => CancelAsync(b.Id)" /> }
+                                    else { <span class="badge">cancelled</span> }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    <aside>
+        <section class="card">
+            <h2>Meeting types</h2>
+            <ul class="list">
+                @foreach (var t in _types)
+                {
+                    <li>
+                        <a href="@($"slotbook/types/{t.Id}")"><strong>@t.Name</strong></a> @if (!t.IsActive) { <span class="badge">off</span> }
+                        <div class="muted small">@t.DurationMinutes min · <a href="@($"book/{t.Slug}")" target="_blank">/book/@t.Slug</a></div>
+                    </li>
+                }
+            </ul>
+        </section>
+        <section class="card">
+            <h2>New meeting type</h2>
+            <EditForm Model="_form" OnSubmit="CreateAsync" class="stack">
+                <label class="field"><span>Name</span><InputText @bind-Value="_form.Name" placeholder="30-minute call" /></label>
+                <label class="field"><span>Link name</span><InputText @bind-Value="_form.Slug" placeholder="intro-call" /></label>
+                <div class="row">
+                    <label class="field grow"><span>Minutes</span><InputNumber @bind-Value="_form.Duration" /></label>
+                    <label class="field grow"><span>Time zone</span>
+                        <InputSelect @bind-Value="_form.TimeZone">
+                            @foreach (var id in Zones.AllIds) { <option value="@id">@id</option> }
+                        </InputSelect>
+                    </label>
+                </div>
+                <button class="btn primary" disabled="@Busy"><Icon Name="plus" /> Create</button>
+            </EditForm>
+        </section>
+    </aside>
+</div>
+
+@code {
+    private IReadOnlyList<MeetingType> _types = [];
+    private IReadOnlyList<(Booking Booking, string TypeName, string TimeZoneId)> _bookings = [];
+    private bool _showCancelled;
+    private readonly NewType _form = new();
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _types = await Slots.ListTypesAsync();
+        _bookings = await Slots.UpcomingAsync(_showCancelled);
+    }
+
+    private Task CreateAsync() => RunAsync(async () =>
+    {
+        var id = await Slots.CreateTypeAsync(_form.Name, _form.Slug, _form.Duration, _form.TimeZone);
+        Navigation.NavigateTo($"slotbook/types/{id}");
+    });
+
+    private Task CancelAsync(int id) => RunAsync(async () =>
+    {
+        await Slots.CancelAsync(id);
+        await LoadAsync();
+    }, "Booking cancelled.");
+
+    private sealed class NewType
+    {
+        public string Name { get; set; } = "";
+        public string Slug { get; set; } = "";
+        public int Duration { get; set; } = 30;
+        public string TimeZone { get; set; } = "Europe/London";
+    }
+}

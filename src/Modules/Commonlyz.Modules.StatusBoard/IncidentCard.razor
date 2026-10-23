@@ -1,0 +1,18 @@
+<section class="card incident" style="margin-top:12px">
+    <div class="row between">
+        <h3>@Incident.Title</h3>
+        <span class="badge @(Incident.ResolvedUtc is null ? "warn" : "ok")">@Incident.Status</span>
+    </div>
+    <ul class="list small">
+        @foreach (var update in Incident.Updates)
+        {
+            <li><strong>@update.Status</strong> — @update.Body <div class="muted">@Format.DateTime(update.CreatedUtc)</div></li>
+        }
+    </ul>
+    @ChildContent
+</section>
+
+@code {
+    [Parameter, EditorRequired] public Incident Incident { get; set; } = default!;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

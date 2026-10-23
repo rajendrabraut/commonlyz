@@ -1,0 +1,21 @@
+<span class="badge @Css">@Label</span>
+
+@code {
+    [Parameter, EditorRequired] public ItemStatus Status { get; set; }
+
+    private string? Css => Status switch
+    {
+        ItemStatus.Accepted => "ok",
+        ItemStatus.Submitted => "info",
+        ItemStatus.ChangesRequested => "warn",
+        _ => null,
+    };
+
+    private string Label => Status switch
+    {
+        ItemStatus.ChangesRequested => "changes requested",
+        ItemStatus.Submitted => "submitted",
+        ItemStatus.Accepted => "accepted",
+        _ => "waiting",
+    };
+}

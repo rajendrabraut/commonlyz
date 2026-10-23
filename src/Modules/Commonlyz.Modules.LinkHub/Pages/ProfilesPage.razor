@@ -1,0 +1,60 @@
+@page "/linkhub"
+@inherits ModulePage
+@inject LinkHubService Hub
+@inject NavigationManager Navigation
+
+<PageHeader Title="LinkHub" Subtitle="Link-in-bio pages served from your own domain at /p/{handle}." />
+<Alerts Error="@Error" Success="@Success" />
+
+<section class="card">
+    <h2>New profile</h2>
+    <EditForm Model="_form" OnSubmit="CreateAsync" class="form-row">
+        <label class="field"><span>Handle</span><InputText @bind-Value="_form.Handle" placeholder="jane" required /></label>
+        <label class="field wide"><span>Display name</span><InputText @bind-Value="_form.Name" placeholder="Jane Doe" required /></label>
+        <button class="btn primary" disabled="@Busy"><Icon Name="plus" /> Create</button>
+    </EditForm>
+</section>
+
+<section class="card">
+    @if (_profiles.Count == 0)
+    {
+        <EmptyState Message="No profiles yet. Create one above." IconName="link" />
+    }
+    else
+    {
+        <table>
+            <thead><tr><th>Profile</th><th>Public URL</th><th class="num">Links</th><th class="num">Clicks</th><th>Status</th></tr></thead>
+            <tbody>
+                @foreach (var p in _profiles)
+                {
+                    <tr>
+                        <td><a href="@($"linkhub/{p.Id}")">@p.DisplayName</a> <span class="muted small">@@@p.Handle</span></td>
+                        <td><a href="@($"p/{p.Handle}")" target="_blank" class="mono small">/p/@p.Handle</a></td>
+                        <td class="num">@p.Links.Count</td>
+                        <td class="num">@Format.Number(p.Links.Sum(l => l.ClickCount))</td>
+                        <td>@if (p.IsPublished) { <span class="badge ok">published</span> } else { <span class="badge">draft</span> }</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+@code {
+    private IReadOnlyList<Profile> _profiles = [];
+    private readonly Form _form = new();
+
+    protected override async Task OnInitializedAsync() => _profiles = await Hub.ListProfilesAsync();
+
+    private Task CreateAsync() => RunAsync(async () =>
+    {
+        var id = await Hub.CreateProfileAsync(_form.Handle, _form.Name);
+        Navigation.NavigateTo($"linkhub/{id}");
+    });
+
+    private sealed class Form
+    {
+        public string Handle { get; set; } = "";
+        public string Name { get; set; } = "";
+    }
+}

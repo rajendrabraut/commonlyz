@@ -1,0 +1,20 @@
+@* Recursive page tree for the sidebar. *@
+<ul>
+    @foreach (var node in Tree.Where(n => n.ParentId == ParentId))
+    {
+        <li>
+            <a href="@($"wiki/{node.Id}")" class="@(node.Id == ActiveId ? "active" : null)">@node.Title</a>
+            @if (Tree.Any(n => n.ParentId == node.Id) && Depth < 12)
+            {
+                <WikiTree Tree="Tree" ParentId="node.Id" ActiveId="ActiveId" Depth="Depth + 1" />
+            }
+        </li>
+    }
+</ul>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<TreeNode> Tree { get; set; } = [];
+    [Parameter] public int? ParentId { get; set; }
+    [Parameter] public int? ActiveId { get; set; }
+    [Parameter] public int Depth { get; set; }
+}

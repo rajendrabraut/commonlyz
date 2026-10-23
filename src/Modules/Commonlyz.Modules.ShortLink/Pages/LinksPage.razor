@@ -1,0 +1,101 @@
+@page "/shortlink"
+@inherits ModulePage
+@inject ShortLinkService Links
+@inject NavigationManager Navigation
+
+<PageHeader Title="ShortLink" Subtitle="Short links that redirect and count every click." />
+<Alerts Error="@Error" Success="@Success" />
+
+<section class="card">
+    <h2>Shorten a link</h2>
+    <EditForm Model="_form" OnValidSubmit="CreateAsync" class="form-row">
+        <label class="field wide"><span>Destination URL</span><InputText @bind-Value="_form.Url" type="url" required placeholder="https://example.com/a/very/long/path" /></label>
+        <label class="field"><span>Custom slug (optional)</span><InputText @bind-Value="_form.Slug" placeholder="auto" /></label>
+        <label class="field narrow"><span>Expires (UTC)</span><InputDate @bind-Value="_form.Expires" /></label>
+        <button class="btn primary" disabled="@Busy"><Icon Name="plus" /> Create</button>
+    </EditForm>
+    @if (_created is not null)
+    {
+        <p class="alert success">Created <a href="@ShortUrl(_created)" target="_blank">@ShortUrl(_created)</a></p>
+    }
+</section>
+
+<section class="card">
+    <div class="row between">
+        <h2>Links</h2>
+        <input class="grow" style="max-width:280px" type="search" placeholder="Search slug or URL" @bind="_search" @bind:event="oninput" @bind:after="LoadAsync" />
+    </div>
+    @if (_links.Count == 0)
+    {
+        <EmptyState Message="No links yet." IconName="zap" />
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Short link</th><th>Destination</th><th class="num">Clicks</th><th>Created</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var link in _links)
+                    {
+                        var expired = link.ExpiresUtc <= DateTime.UtcNow;
+                        <tr class="@(link.IsActive && !expired ? null : "inactive")">
+                            <td>
+                                <a class="mono" href="@($"shortlink/{link.Id}")">/@link.Slug</a>
+                                @if (!link.IsActive) { <span class="badge">disabled</span> }
+                                @if (expired) { <span class="badge">expired</span> }
+                            </td>
+                            <td class="truncate" title="@link.DestinationUrl">@link.DestinationUrl</td>
+                            <td class="num">@Format.Number(link.ClickCount)</td>
+                            <td class="muted nowrap">@Format.Date(link.CreatedUtc)</td>
+                            <td class="actions">
+                                <a class="btn sm ghost" href="@ShortUrl(link)" target="_blank" title="Open"><Icon Name="external" Size="16" /></a>
+                                <button class="btn sm ghost" @onclick="() => ToggleAsync(link)">@(link.IsActive ? "Disable" : "Enable")</button>
+                                <ConfirmButton IconOnly OnConfirm="() => DeleteAsync(link)" />
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@code {
+    private IReadOnlyList<Link> _links = [];
+    private Form _form = new();
+    private string? _search;
+    private Link? _created;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync() => _links = await Links.ListAsync(_search);
+
+    private string ShortUrl(Link link) => Navigation.BaseUri.TrimEnd('/') + ShortLinkModule.PublicPrefix + link.Slug;
+
+    private Task CreateAsync() => RunAsync(async () =>
+    {
+        var expires = _form.Expires?.ToDateTime(new TimeOnly(23, 59, 59), DateTimeKind.Utc);
+        _created = await Links.CreateAsync(_form.Url, _form.Slug, expires, new Uri(Navigation.BaseUri).Host);
+        _form = new();
+        await LoadAsync();
+    });
+
+    private Task ToggleAsync(Link link) => RunAsync(async () =>
+    {
+        await Links.SetActiveAsync(link.Id, !link.IsActive);
+        await LoadAsync();
+    });
+
+    private Task DeleteAsync(Link link) => RunAsync(async () =>
+    {
+        await Links.DeleteAsync(link.Id);
+        await LoadAsync();
+    }, $"Deleted /{link.Slug}.");
+
+    private sealed class Form
+    {
+        public string Url { get; set; } = "";
+        public string? Slug { get; set; }
+        public DateOnly? Expires { get; set; }
+    }
+}

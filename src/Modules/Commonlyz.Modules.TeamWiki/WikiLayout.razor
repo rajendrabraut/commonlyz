@@ -1,0 +1,54 @@
+@* Shared frame for wiki pages: sidebar (search, tree, new page) + content. *@
+@inject WikiService Wiki
+@inject ICurrentUser CurrentUser
+@inject NavigationManager Navigation
+
+<div class="split">
+    <aside class="card">
+        <input type="search" placeholder="Search the wiki" @bind="_query" @bind:event="oninput" @bind:after="SearchAsync" />
+        @if (_hits is not null)
+        {
+            <ul class="list small" style="margin-top:8px">
+                @if (_hits.Count == 0) { <li class="muted">No matches.</li> }
+                @foreach (var hit in _hits)
+                {
+                    <li><a href="@($"wiki/{hit.Id}")"><strong>@hit.Title</strong></a><div class="muted">@hit.Snippet</div></li>
+                }
+            </ul>
+        }
+        <nav class="tree" style="margin-top:12px">
+            <WikiTree Tree="Tree" ActiveId="ActiveId" />
+        </nav>
+        <EditForm Model="_new" OnSubmit="CreateAsync" class="row" style="margin-top:12px">
+            <input class="grow" placeholder="New top-level page" @bind="_new.Title" />
+            <button class="btn sm"><Icon Name="plus" Size="14" /></button>
+        </EditForm>
+    </aside>
+    <div>@ChildContent</div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<TreeNode> Tree { get; set; } = [];
+    [Parameter] public int? ActiveId { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private string? _query;
+    private IReadOnlyList<SearchHit>? _hits;
+    private readonly NewPage _new = new();
+
+    private async Task SearchAsync() => _hits = string.IsNullOrWhiteSpace(_query) ? null : await Wiki.SearchAsync(_query);
+
+    private async Task CreateAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_new.Title))
+            return;
+        var id = await Wiki.CreateAsync(null, _new.Title, (await CurrentUser.GetAsync()).DisplayName);
+        _new.Title = "";
+        Navigation.NavigateTo($"wiki/{id}/edit");
+    }
+
+    private sealed class NewPage
+    {
+        public string Title { get; set; } = "";
+    }
+}

@@ -1,0 +1,99 @@
+@page "/budget/categories"
+@inherits ModulePage
+@inject BudgetService Budget
+
+<PageHeader Title="Categories" Subtitle="Groups and categories for your budget.">
+    <a class="btn" href="budget"><Icon Name="left" /> Budget</a>
+</PageHeader>
+<Alerts Error="@Error" Success="@Success" />
+
+@if (_groups.Count == 0)
+{
+    <section class="card"><EmptyState Message="No categories yet." IconName="wallet"><button class="btn primary" @onclick="SeedAsync">Create starter categories</button></EmptyState></section>
+}
+
+<div class="grid-3">
+    @foreach (var group in _groups)
+    {
+        <section class="card">
+            <h2>@group.Name</h2>
+            <ul class="list">
+                @foreach (var c in group.Categories)
+                {
+                    <li class="row">
+                        @if (_renaming == c.Id)
+                        {
+                            <input class="grow" @bind="_renameText" />
+                            <button class="btn sm primary" @onclick="() => RenameAsync(c.Id)">Save</button>
+                        }
+                        else
+                        {
+                            <span class="grow">@c.Name</span>
+                            <button class="btn sm ghost" @onclick="() => { _renaming = c.Id; _renameText = c.Name; }"><Icon Name="edit" Size="14" /></button>
+                        }
+                    </li>
+                }
+            </ul>
+            <EditForm Model="_newCategory[group.Id]" OnSubmit="() => AddCategoryAsync(group.Id)" class="row" style="margin-top:8px">
+                <input class="grow" placeholder="New category" @bind="_newCategory[group.Id].Name" />
+                <button class="btn sm"><Icon Name="plus" Size="14" /></button>
+            </EditForm>
+        </section>
+    }
+    <section class="card">
+        <h2>New group</h2>
+        <EditForm Model="_newGroup" OnSubmit="AddGroupAsync" class="row">
+            <input class="grow" placeholder="e.g. Subscriptions" @bind="_newGroup.Name" />
+            <button class="btn sm"><Icon Name="plus" Size="14" /></button>
+        </EditForm>
+    </section>
+</div>
+
+@code {
+    private IReadOnlyList<CategoryGroup> _groups = [];
+    private readonly Dictionary<int, NameForm> _newCategory = [];
+    private readonly NameForm _newGroup = new();
+    private int? _renaming;
+    private string _renameText = "";
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _groups = await Budget.GroupsAsync();
+        foreach (var g in _groups)
+            _newCategory.TryAdd(g.Id, new NameForm());
+    }
+
+    private Task SeedAsync() => RunAsync(async () =>
+    {
+        await Budget.SeedStarterCategoriesAsync();
+        await LoadAsync();
+    });
+
+    private Task AddGroupAsync() => RunAsync(async () =>
+    {
+        await Budget.AddGroupAsync(_newGroup.Name);
+        _newGroup.Name = "";
+        await LoadAsync();
+    });
+
+    private Task AddCategoryAsync(int groupId) => RunAsync(async () =>
+    {
+        await Budget.AddCategoryAsync(groupId, _newCategory[groupId].Name);
+        _newCategory[groupId].Name = "";
+        await LoadAsync();
+    });
+
+    private Task RenameAsync(int categoryId) => RunAsync(async () =>
+    {
+        await Budget.RenameCategoryAsync(categoryId, _renameText);
+        _renaming = null;
+        await LoadAsync();
+    });
+
+    private sealed class NameForm
+    {
+        public string Name { get; set; } = "";
+    }
+}
