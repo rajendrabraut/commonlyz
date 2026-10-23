@@ -1,0 +1,43 @@
+@page "/account"
+@attribute [Authorize]
+@inherits ModulePage
+@using Microsoft.AspNetCore.Identity
+@inject IServiceScopeFactory Scopes
+@inject ICurrentUser CurrentUser
+
+<PageHeader Title="My account" Subtitle="@_email" />
+<Alerts Error="@Error" Success="@Success" />
+
+<section class="card">
+    <h2>Change password</h2>
+    <EditForm Model="_model" OnValidSubmit="ChangePasswordAsync" class="form-row">
+        <label class="field"><span>Current password</span><InputText @bind-Value="_model.Current" type="password" autocomplete="current-password" required /></label>
+        <label class="field"><span>New password</span><InputText @bind-Value="_model.New" type="password" autocomplete="new-password" required minlength="8" /></label>
+        <button class="btn primary" disabled="@Busy">Update password</button>
+    </EditForm>
+</section>
+
+@code {
+    private readonly PasswordModel _model = new();
+    private string _email = "";
+
+    protected override async Task OnInitializedAsync() => _email = (await CurrentUser.GetAsync()).Email;
+
+    private Task ChangePasswordAsync() => RunAsync(async () =>
+    {
+        var me = await CurrentUser.GetAsync();
+        await using var scope = Scopes.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+        var user = AppException.NotFound(await users.FindByIdAsync(me.Id), "User");
+        var result = await users.ChangePasswordAsync(user, _model.Current, _model.New);
+        if (!result.Succeeded)
+            throw new AppException(string.Join(" ", result.Errors.Select(e => e.Description)));
+        _model.Current = _model.New = "";
+    }, "Password changed.");
+
+    private sealed class PasswordModel
+    {
+        public string Current { get; set; } = "";
+        public string New { get; set; } = "";
+    }
+}

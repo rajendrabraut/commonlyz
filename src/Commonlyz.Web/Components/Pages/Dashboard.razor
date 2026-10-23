@@ -1,0 +1,84 @@
+@page "/"
+@attribute [Authorize]
+@inject IEnumerable<IAppModule> Modules
+@inject IServiceProvider Services
+@inject IUserDirectory UserDirectory
+@inject ICurrentUser CurrentUser
+@implements IDisposable
+
+<PageHeader Title="Dashboard" Subtitle="@($"Welcome back, {_userName}. {Modules.Count()} apps, one sign-in.")" />
+
+<section class="stat-row">
+    <StatTile Label="Apps" Value="@Modules.Count().ToString(System.Globalization.CultureInfo.InvariantCulture)" />
+    <StatTile Label="Users" Value="@(_userCount?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "…")" />
+    <StatTile Label="Signed in as" Value="@(_isAdmin ? "Admin" : "Member")" />
+</section>
+
+@foreach (var group in Modules.GroupBy(m => m.Info.Group).OrderBy(g => g.Key))
+{
+    <h2 class="section-title">@ModuleGroups.Title(group.Key)</h2>
+    <div class="module-grid">
+        @foreach (var module in group)
+        {
+            <a class="module-card card" href="@module.Info.Route.TrimStart('/')">
+                <div class="module-card-head">
+                    <span class="module-icon"><Icon Name="@module.Info.Icon" Size="20" /></span>
+                    <div>
+                        <h3>@module.Info.Name</h3>
+                        <span class="muted small">Instead of @module.Info.Replaces</span>
+                    </div>
+                </div>
+                <p class="muted">@module.Info.Description</p>
+                <dl class="module-stats">
+                    @if (_stats.TryGetValue(module.Info.Key, out var stats))
+                    {
+                        @foreach (var stat in stats)
+                        {
+                            <div><dt>@stat.Label</dt><dd>@stat.Value</dd></div>
+                        }
+                    }
+                    else
+                    {
+                        <div><dt>&nbsp;</dt><dd class="muted">…</dd></div>
+                    }
+                </dl>
+            </a>
+        }
+    </div>
+}
+
+@code {
+    private readonly Dictionary<string, IReadOnlyList<ModuleStat>> _stats = new(StringComparer.Ordinal);
+    private readonly CancellationTokenSource _cts = new();
+    private int? _userCount;
+    private string _userName = "";
+    private bool _isAdmin;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var me = await CurrentUser.GetAsync();
+        _userName = me.DisplayName;
+        _isAdmin = me.IsAdmin;
+        _userCount = (await UserDirectory.ListAsync(_cts.Token)).Count;
+
+        // Sequential on purpose: one small query per module, and a failing module must not hide the others.
+        foreach (var module in Modules)
+        {
+            try
+            {
+                _stats[module.Info.Key] = await module.GetStatsAsync(Services, _cts.Token);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _stats[module.Info.Key] = [new ModuleStat("Status", "unavailable")];
+            }
+            StateHasChanged();
+        }
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}

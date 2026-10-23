@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Commonlyz.Core/Commonlyz.Core.csproj" />
+    <Project Path="src/Commonlyz.Web/Commonlyz.Web.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,11 @@
+<div class="empty-state">
+    <Icon Name="@IconName" Size="28" />
+    <p>@Message</p>
+    @ChildContent
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Message { get; set; } = "";
+    [Parameter] public string IconName { get; set; } = "inbox";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

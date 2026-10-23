@@ -1,0 +1,77 @@
+@page "/login"
+@attribute [ExcludeFromInteractiveRouting]
+@layout PublicLayout
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<AppUser> SignInManager
+@inject NavigationManager Navigation
+
+<PageTitle>Sign in · Commonlyz</PageTitle>
+
+<div class="auth-card card">
+    <div class="brand center"><img src="favicon.svg" alt="" width="28" height="28" /> Commonlyz</div>
+    <h1 class="center">Sign in</h1>
+
+    <EditForm Model="Input" method="post" OnValidSubmit="SignInAsync" FormName="login" class="stack">
+        <DataAnnotationsValidator />
+        <Alerts Error="@_error" />
+
+        <label class="field">
+            <span>Email</span>
+            <InputText @bind-Value="Input.Email" type="email" autocomplete="username" autofocus />
+            <ValidationMessage For="() => Input.Email" />
+        </label>
+        <label class="field">
+            <span>Password</span>
+            <InputText @bind-Value="Input.Password" type="password" autocomplete="current-password" />
+            <ValidationMessage For="() => Input.Password" />
+        </label>
+        <label class="check">
+            <InputCheckbox @bind-Value="Input.RememberMe" /> Keep me signed in
+        </label>
+        <button type="submit" class="btn primary block">Sign in</button>
+    </EditForm>
+</div>
+
+@code {
+    private string? _error;
+
+    [SupplyParameterFromForm]
+    private LoginModel Input { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    protected override void OnInitialized() => Input ??= new();
+
+    private async Task SignInAsync()
+    {
+        var result = await SignInManager.PasswordSignInAsync(Input.Email, Input.Password, Input.RememberMe, lockoutOnFailure: true);
+        if (result.Succeeded)
+        {
+            Navigation.NavigateTo(SafeReturnUrl(ReturnUrl), forceLoad: true);
+            return;
+        }
+
+        _error = result.IsLockedOut
+            ? "Too many failed attempts. Try again in a few minutes."
+            : "Invalid email or password.";
+    }
+
+    // Only local paths: never redirect off-site after login (open redirect).
+    private static string SafeReturnUrl(string? url) =>
+        !string.IsNullOrEmpty(url) && url.StartsWith('/') && !url.StartsWith("//", StringComparison.Ordinal) && !url.StartsWith("/\\", StringComparison.Ordinal)
+            ? url
+            : "/";
+
+    private sealed class LoginModel
+    {
+        [Required, EmailAddress]
+        public string Email { get; set; } = "";
+
+        [Required]
+        public string Password { get; set; } = "";
+
+        public bool RememberMe { get; set; } = true;
+    }
+}

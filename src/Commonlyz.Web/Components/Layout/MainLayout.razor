@@ -1,0 +1,65 @@
+@inherits LayoutComponentBase
+@inject IEnumerable<IAppModule> Modules
+@inject NavigationManager Navigation
+
+<div class="shell">
+    @* CSS-only mobile menu toggle: no JavaScript. *@
+    <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Toggle navigation" />
+
+    <aside class="sidebar">
+        <div class="sidebar-top">
+            <a href="" class="brand"><img src="favicon.svg" alt="" width="22" height="22" /> Commonlyz</a>
+            <label for="nav-toggle" class="btn ghost sm nav-toggle-btn"><Icon Name="menu" /></label>
+        </div>
+
+        <nav class="nav">
+            <NavLink href="" Match="NavLinkMatch.All" class="nav-link"><Icon Name="grid" /> Dashboard</NavLink>
+
+            @foreach (var group in Modules.GroupBy(m => m.Info.Group).OrderBy(g => g.Key))
+            {
+                <div class="nav-group">@ModuleGroups.Title(group.Key)</div>
+                @foreach (var module in group)
+                {
+                    <NavLink href="@module.Info.Route.TrimStart('/')" class="nav-link" title="@module.Info.Description">
+                        <Icon Name="@module.Info.Icon" /> @module.Info.Name
+                    </NavLink>
+                }
+            }
+
+            <AuthorizeView Roles="@Roles.Admin">
+                <div class="nav-group">Administration</div>
+                <NavLink href="users" class="nav-link"><Icon Name="shield" /> Users</NavLink>
+            </AuthorizeView>
+        </nav>
+
+        <AuthorizeView>
+            <div class="sidebar-user">
+                <NavLink href="account" class="nav-link"><Icon Name="user" /> @context.User.FindFirst(AppClaimsFactory.DisplayNameClaim)?.Value</NavLink>
+                <form action="logout" method="post">
+                    <AntiforgeryToken />
+                    <button type="submit" class="nav-link as-button"><Icon Name="logout" /> Sign out</button>
+                </form>
+            </div>
+        </AuthorizeView>
+    </aside>
+
+    <main class="content">
+        <ErrorBoundary @ref="_errorBoundary">
+            <ChildContent>@Body</ChildContent>
+            <ErrorContent Context="ex">
+                <div class="alert error" role="alert">
+                    <Icon Name="alert" /> Something went wrong on this page. The error has been logged.
+                    <button class="btn sm" @onclick="Recover">Try again</button>
+                </div>
+            </ErrorContent>
+        </ErrorBoundary>
+    </main>
+</div>
+
+@code {
+    private ErrorBoundary? _errorBoundary;
+
+    protected override void OnParametersSet() => _errorBoundary?.Recover();
+
+    private void Recover() => _errorBoundary?.Recover();
+}

@@ -1,0 +1,13 @@
+@if (!string.IsNullOrEmpty(Error))
+{
+    <div class="alert error" role="alert"><Icon Name="alert" /> @Error</div>
+}
+@if (!string.IsNullOrEmpty(Success))
+{
+    <div class="alert success" role="status"><Icon Name="check" /> @Success</div>
+}
+
+@code {
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public string? Success { get; set; }
+}

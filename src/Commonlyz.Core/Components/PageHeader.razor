@@ -1,0 +1,21 @@
+<PageTitle>@Title · Commonlyz</PageTitle>
+
+<header class="page-header">
+    <div>
+        <h1>@Title</h1>
+        @if (Subtitle is not null)
+        {
+            <p class="muted">@Subtitle</p>
+        }
+    </div>
+    @if (ChildContent is not null)
+    {
+        <div class="page-actions">@ChildContent</div>
+    }
+</header>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

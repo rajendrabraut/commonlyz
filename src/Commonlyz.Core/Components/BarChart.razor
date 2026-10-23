@@ -1,0 +1,35 @@
+@* Dependency-free SVG bar chart. Hover a bar for its exact value. *@
+@if (Items.Count == 0)
+{
+    <p class="muted">No data yet.</p>
+}
+else
+{
+    var max = Math.Max(1, Items.Max(i => i.Value));
+    var barWidth = Width / (double)Items.Count;
+    <svg class="chart" viewBox="0 0 @Width @(Height + 18)" role="img" aria-label="@Label">
+        @for (var i = 0; i < Items.Count; i++)
+        {
+            var item = Items[i];
+            var h = item.Value / (double)max * Height;
+            <rect x="@F(i * barWidth + 1)" y="@F(Height - Math.Max(h, 1))" width="@F(Math.Max(barWidth - 2, 1))" height="@F(Math.Max(h, 1))" rx="2"
+                  style="@(item.Color is null ? null : $"fill:{item.Color}")">
+                <title>@item.Label: @(ValueFormatter?.Invoke(item.Value) ?? item.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))</title>
+            </rect>
+        }
+        <text x="0" y="@(Height + 14)">@Items[0].Label</text>
+        <text x="@Width" y="@(Height + 14)" text-anchor="end">@Items[^1].Label</text>
+    </svg>
+}
+
+@code {
+    public sealed record Bar(string Label, long Value, string? Color = null);
+
+    [Parameter, EditorRequired] public IReadOnlyList<Bar> Items { get; set; } = [];
+    [Parameter] public string Label { get; set; } = "Chart";
+    [Parameter] public Func<long, string>? ValueFormatter { get; set; }
+    [Parameter] public int Width { get; set; } = 600;
+    [Parameter] public int Height { get; set; } = 140;
+
+    private static string F(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+}
