@@ -39,6 +39,18 @@ dotnet run --project src/Commonlyz.Web         # http://localhost:5100
 To see real emails locally, run a catch-all SMTP server such as [Mailpit](https://mailpit.axllent.org) (`docker run -p 1025:1025 -p 8025:8025 axllent/mailpit`) and start the app with `Email__Host=localhost Email__Port=1025 Email__Security=None`.
 Development sign-in: `admin@commonlyz.local` / `Admin123!` (from `appsettings.Development.json`). Every module's migrations run on startup.
 
+### IIS (Windows, no Docker)
+Needs an elevated PowerShell. The script enables IIS (with WebSockets, which Blazor Server needs), installs the
+.NET Hosting Bundle if missing, and hosts the app at http://localhost:8090 on SQL Server LocalDB by default
+(pass `-ConnectionString` for another server):
+```powershell
+dotnet publish src/Commonlyz.Web -c Release -o artifacts/iis
+.\eng\iis\setup-iis.ps1 -Source artifacts\iis -AdminPassword '<choose one>'
+.\eng\iis\smoke-test.ps1 -BaseUrl http://localhost:8090 -AdminPassword '<same>'
+```
+The `IIS` GitHub Actions workflow runs the same two scripts on a Windows runner for every push to `main` and every PR,
+and uploads the published package as the `commonlyz-iis` artifact.
+
 ### Tests
 ```bash
 dotnet test     # 130 tests; integration tests start SQL Server via Testcontainers (Docker required)
