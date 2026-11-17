@@ -1,0 +1,71 @@
+name: IIS
+
+# Deploys the published app to real IIS on a Windows runner (backed by SQL Server LocalDB, no Docker)
+# and smoke-tests it end to end: pages, sign-in, every module, and the Blazor WebSocket circuit.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  iis:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      SITE_PORT: 8090
+      # Throwaway admin for this runner's database only.
+      ADMIN_PASSWORD: Ci-Admin-${{ github.run_id }}!
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Publish
+        run: dotnet publish src/Commonlyz.Web -c Release -o artifacts/iis
+
+      - name: Ensure SQL Server LocalDB
+        shell: pwsh
+        run: |
+          if (-not (Get-Command sqllocaldb -ErrorAction SilentlyContinue)) {
+            choco install sqllocaldb -y --no-progress
+            $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+          }
+          sqllocaldb info
+
+      - name: Install IIS, Hosting Bundle and site
+        shell: pwsh
+        run: ./eng/iis/setup-iis.ps1 -Source artifacts/iis -Port $env:SITE_PORT -AdminPassword $env:ADMIN_PASSWORD
+
+      - name: Smoke test
+        shell: pwsh
+        run: ./eng/iis/smoke-test.ps1 -BaseUrl "http://localhost:$env:SITE_PORT" -AdminPassword $env:ADMIN_PASSWORD
+
+      - name: Recycle app pool and re-test
+        shell: pwsh
+        run: |
+          & "$env:windir\System32\inetsrv\appcmd.exe" recycle apppool /apppool.name:Commonlyz
+          ./eng/iis/smoke-test.ps1 -BaseUrl "http://localhost:$env:SITE_PORT" -AdminPassword $env:ADMIN_PASSWORD
+
+      - name: Diagnostics
+        if: failure()
+        shell: pwsh
+        run: |
+          Get-ChildItem C:\inetpub\commonlyz\logs -ErrorAction SilentlyContinue | ForEach-Object {
+            "===== $($_.Name)"; Get-Content $_.FullName -Tail 200
+          }
+          "===== Application event log (IIS / ASP.NET Core Module)"
+          Get-WinEvent -LogName Application -MaxEvents 50 -ErrorAction SilentlyContinue |
+            Where-Object ProviderName -match 'IIS|ASP.NET|W3SVC|WAS' |
+            Format-List TimeCreated, ProviderName, Message
+
+      - name: Upload IIS package
+        uses: actions/upload-artifact@v4
+        with:
+          name: commonlyz-iis
+          path: artifacts/iis
