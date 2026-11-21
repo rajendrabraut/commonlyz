@@ -1,0 +1,28 @@
+@inject Microsoft.Extensions.Options.IOptions<WebOptions> Web
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>@(ViewData["Title"] is string t ? $"{t} · Commonlyz Files" : "Commonlyz Files · convert, compress and edit")</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body data-api="@Web.Value.ApiBaseUrl.TrimEnd('/')">
+    <header class="topbar">
+        <a class="brand" href="/"><span class="logo">C</span> Commonlyz <b>Files</b></a>
+        <nav>
+            <a href="/#convert">Convert</a>
+            <a href="/#image">Image tools</a>
+            <a href="/privacy">Privacy</a>
+        </nav>
+    </header>
+    <main>
+        @RenderBody()
+    </main>
+    <footer class="footer">
+        Files are processed on this server and deleted automatically after 30 minutes. Nothing is shared or kept.
+    </footer>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

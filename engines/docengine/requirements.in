@@ -1,0 +1,6 @@
+﻿pdfminer.six
+python-docx
+pypdfium2
+pillow
+numpy
+onnxruntime

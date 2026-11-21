@@ -1,0 +1,23 @@
+<label class="check"><input type="checkbox" data-opt="auto" checked /> Auto-enhance (levels, colour, clarity)</label>
+<label>Denoise
+    <select data-opt="denoise">
+        <option value="0" selected>Off</option>
+        <option value="1">Light</option>
+        <option value="2">Medium</option>
+        <option value="3">Strong</option>
+    </select>
+</label>
+<label>Sharpen <output data-for="sharpen">0</output>
+    <input type="range" data-opt="sharpen" min="0" max="3" step="0.25" value="0" />
+</label>
+<label>Brightness <output data-for="brightness">0</output>
+    <input type="range" data-opt="brightness" min="-50" max="50" step="5" value="0" />
+</label>
+<label>Contrast <output data-for="contrast">0</output>
+    <input type="range" data-opt="contrast" min="-50" max="50" step="5" value="0" />
+</label>
+<label>Saturation <output data-for="saturation">0</output>
+    <input type="range" data-opt="saturation" min="-100" max="100" step="5" value="0" />
+</label>
+<partial name="Panels/_format" />
+<p class="muted">For bigger images with restored detail, use <a href="/upscale-image">AI upscale</a>.</p>
