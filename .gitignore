@@ -11,7 +11,7 @@ appsettings.*.local.json
 engines/imgcore/target/
 __pycache__/
 .venv*/
-models/
+/models/
 
 # Misc
 .env
