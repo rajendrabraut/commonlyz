@@ -23,3 +23,9 @@ STATUS: IN_PROGRESS
 - Verification: fresh clone `dotnet build Commonlyz.slnx -c Release` → 0 warnings, 0 errors (failed with CS0234 before fix).
   CI on d7119a2: CI success, IIS success, Files success (71 passed, 0 skipped, LibreOffice present, Word test ran).
 - Next: T-008 browser end-to-end. Merge of PR #4 is the owner's action.
+
+## 2026-11-22T12:05:00Z (17:50 Asia/Kathmandu) — T-008 Browser end-to-end — DONE
+- Ran API :5280 (local imgcore, docengine venv, ONNX model) and Web :5290; drove each tool page in the built-in browser with generated JPEG/PNG and the produced PDF.
+- Results: Image to PDF (2 pages, 445 KB, 5 s); PDF to JPG / PNG (2 pages each); PDF to Word; Image to Word; Convert image; Compress (66% smaller); Resize to 640x480; Crop; Aspect ratio 1:1; Rotate; Enhance; Reduce quality (95% smaller); AI upscale 2x (320x240 to 640x480, 22 s). Resize with no size shows "Give a width, a height, or both." No console errors.
+- Not covered locally: Word to PDF/JPG, DOC to DOCX (no LibreOffice; CI Files run covers them). Word pages don't warn up front when the server lacks LibreOffice (follow-up, R-008).
+- Servers stopped.

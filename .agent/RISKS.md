@@ -7,3 +7,7 @@
 - R-005 [LOW] WebP output is lossless only (pure-Rust encoder); lossy small files should use JPEG.
 - R-006 [LOW] Upscale model is a third-party ONNX export; integrity enforced by SHA-256, provenance not cryptographically signed.
 - R-007 [LOW] Anonymous API: protected by per-IP rate limit and size limits only; add auth if exposed publicly at scale.
+
+### R-008 [LOW] Word tool pages don't check /v1/capabilities
+- Without LibreOffice on the server, Word tools only fail after upload. Fix: tool.js reads capabilities and disables Run with a notice.
+
