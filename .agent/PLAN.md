@@ -29,9 +29,9 @@ Browser ──> Commonlyz.Files.Web (MVC, static UI, strict CSP)
 | T-004 | Infrastructure adapters + job store | done | unit + integration tests |
 | T-005 | API (endpoints, errors, limits, headers) | done | integration tests |
 | T-006 | MVC frontend (17 tools, crop UI) | done (build) | browser check pending (T-008) |
-| T-007 | Tests + Files CI workflow | done (local) | CI run pending push (Q-001) |
+| T-007 | Tests + Files CI workflow | done | PR #4 run 45018031155: 71 passed, 0 skipped |
 | T-008 | End-to-end local run in browser | todo | |
-| T-009 | Word conversions verified (LibreOffice) | blocked-env | not installed locally; covered by files.yml |
+| T-009 | Word conversions verified (LibreOffice) | done | CI Files run with /usr/bin/soffice; Word_to_pdf_and_images passed |
 
 ## Traceability
 | REQ | Tasks | Tests |

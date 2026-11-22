@@ -17,3 +17,9 @@ STATUS: IN_PROGRESS
 - Gate at handoff: GREEN locally (Word path unverified locally, see R-001)
 - Decisions needing review: D-001, D-002, D-003 (REVIEW: yes) · Open blocking questions: none
 - Next recommended task: T-008 (run API + Web, check every tool in a browser), then confirm `Files` workflow green
+
+## 2026-11-22T11:45:00Z (17:30 Asia/Kathmandu) — T-009 CI verification — DONE
+- Changed: PR #4 opened (agent/files-converter -> main). Fix d7119a2: `.gitignore` `models/` hid `src/Commonlyz.Files.Web/Models/ToolCatalog.cs` on case-insensitive checkouts; anchored to `/models/` and committed the file.
+- Verification: fresh clone `dotnet build Commonlyz.slnx -c Release` → 0 warnings, 0 errors (failed with CS0234 before fix).
+  CI on d7119a2: CI success, IIS success, Files success (71 passed, 0 skipped, LibreOffice present, Word test ran).
+- Next: T-008 browser end-to-end. Merge of PR #4 is the owner's action.
