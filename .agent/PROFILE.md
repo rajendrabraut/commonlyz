@@ -6,8 +6,8 @@ Detected 2026-11-21 from manifests (`Commonlyz.slnx`, `*.csproj`, `Directory.Pac
 | Component | Stack | Version |
 |---|---|---|
 | Commonlyz platform (existing) | ASP.NET Core 10 Blazor, EF Core 10, SQL Server 2022 | net10.0 |
-| Commonlyz Files API | ASP.NET Core 10 minimal API | net10.0 |
-| Commonlyz Files Web | ASP.NET Core 10 MVC | net10.0 |
+| Kamala API | ASP.NET Core 10 minimal API | net10.0 |
+| Kamala Web | ASP.NET Core 10 MVC | net10.0 |
 | imgcore engine | Rust 2021 edition, stable toolchain (local: x86_64-pc-windows-gnu) | image 0.25.10, fast_image_resize 6.1.0 |
 | docengine engine | Python | 3.13 (venv, hash-pinned) |
 | Word conversion | LibreOffice headless | distro/installed version |
@@ -22,7 +22,7 @@ Detected 2026-11-21 from manifests (`Commonlyz.slnx`, `*.csproj`, `Directory.Pac
 | Gate | Command |
 |---|---|
 | Restore/build | `dotnet build Commonlyz.slnx -c Release` |
-| Tests (.NET, Files) | `dotnet test tests/Commonlyz.Files.Tests -c Release` with `FILES_IMGCORE`, `FILES_PYTHON`, `FILES_DOCENGINE`, `FILES_MODEL`, `FILES_SOFFICE` |
+| Tests (.NET, Files) | `dotnet test tests/Kamala.Tests -c Release` with `FILES_IMGCORE`, `FILES_PYTHON`, `FILES_DOCENGINE`, `FILES_MODEL`, `FILES_SOFFICE` |
 | Tests (.NET, platform) | `dotnet test tests/Commonlyz.Tests` (needs Docker or `COMMONLYZ_TEST_SQL`) |
 | Rust build/test | `cargo build --release --locked`, `cargo test --locked` in `engines/imgcore` |
 | Python install | `pip install --require-hashes --no-deps -r engines/docengine/requirements.txt` |

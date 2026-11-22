@@ -1,7 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <RootNamespace>Commonlyz.Files.Domain</RootNamespace>
-  </PropertyGroup>
-
-</Project>

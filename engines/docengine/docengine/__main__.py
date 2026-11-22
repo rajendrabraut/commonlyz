@@ -1,4 +1,4 @@
-"""docengine: document conversion and AI upscaling engine for Commonlyz Files.
+"""docengine: document conversion and AI upscaling engine for Kamala.
 
 Reads one JSON job from stdin, writes output files into the job's output directory and prints a JSON summary
 on stdout. Errors are printed as {"error": "..."} with exit code 2 (bad input) or 1 (internal).

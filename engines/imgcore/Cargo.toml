@@ -2,7 +2,7 @@
 name = "imgcore"
 version = "0.1.0"
 edition = "2021"
-description = "Image processing engine for Commonlyz Files (pure Rust: memory-safe decoding of untrusted uploads)"
+description = "Image processing engine for Kamala (pure Rust: memory-safe decoding of untrusted uploads)"
 license = "MIT"
 publish = false
 

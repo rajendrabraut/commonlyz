@@ -131,7 +131,7 @@ python3 eng/register-module.py Invoices      # project reference + ModuleCatalog
 - Email (SlotBook confirmations with cancel links, ClientCollect reminders) uses a **database outbox**: `INotificationSender` only queues, and a background dispatcher sends over SMTP (MailKit), with exponential backoff up to `MaxAttempts`. A slow or down mail server never fails a booking or page, and nothing is lost on restart. Rows are claimed with a lease (`UPDATE … OUTPUT` with `READPAST`), so several instances can run the dispatcher without double-sending. Admins can see delivery status, errors and retries, and send a test email, at **/email**.
 - Back up the database (Azure SQL point-in-time restore, or `BACKUP DATABASE … TO URL`). ClientCollect uploads (10 MB each) live in it too.
 
-## Commonlyz Files (convert, compress and edit, like iLovePDF)
+## Kamala (convert, compress and edit, like iLovePDF)
 
 A separate product in this repo: an ASP.NET Core 10 **API** plus an ASP.NET Core **MVC** website, with conversion
 engines in the language that does each job best.
@@ -146,11 +146,11 @@ engines in the language that does each job best.
 All libraries are permissively licensed; AGPL tools (PyMuPDF, pdf2docx, Ghostscript) are deliberately not used.
 
 ```
-src/Commonlyz.Files.Domain          file kinds, image operations, conversion requests, validation (no dependencies)
-src/Commonlyz.Files.Application     use cases, ports (IImageEditor, IPdfRasterizer, IOfficeConverter...), conversion routes
-src/Commonlyz.Files.Infrastructure  engine adapters, process runner, magic-byte detection, disk job store
-src/Commonlyz.Files.Api             composition root + thin HTTP endpoints (/v1/...)
-src/Commonlyz.Files.Web             MVC site; the browser calls the API directly
+src/Kamala.Domain          file kinds, image operations, conversion requests, validation (no dependencies)
+src/Kamala.Application     use cases, ports (IImageEditor, IPdfRasterizer, IOfficeConverter...), conversion routes
+src/Kamala.Infrastructure  engine adapters, process runner, magic-byte detection, disk job store
+src/Kamala.Api             composition root + thin HTTP endpoints (/v1/...)
+src/Kamala.Web             MVC site; the browser calls the API directly
 engines/imgcore                     Rust image engine          engines/docengine   Python document engine
 ```
 Adding a conversion is one new `IConversionRoute` class, registered in `AddFilesApplication`.
@@ -164,8 +164,8 @@ $env:Files__Engines__ImgcorePath = "engines\imgcore\target\release\imgcore.exe"
 $env:Files__Engines__PythonPath = ".venv-docengine\Scripts\python.exe"
 $env:Files__Engines__DocEngineDirectory = "engines\docengine"
 $env:Files__Engines__UpscaleModelPath = "models\realesr-general-x4v3.onnx"
-dotnet run --project src/Commonlyz.Files.Api    # http://localhost:5280
-dotnet run --project src/Commonlyz.Files.Web    # http://localhost:5290
+dotnet run --project src/Kamala.Api    # http://localhost:5280
+dotnet run --project src/Kamala.Web    # http://localhost:5290
 ```
 A missing engine only disables its tools (`GET /v1/capabilities` says which work).
 
@@ -178,6 +178,6 @@ allows only the configured CORS origins, and sends `nosniff` and a `default-src 
 strict CSP with no inline scripts. EXIF/GPS metadata is stripped from edited images.
 
 ### Tests
-`dotnet test tests/Commonlyz.Files.Tests` runs unit tests always and engine tests when `FILES_IMGCORE`, `FILES_PYTHON`,
+`dotnet test tests/Kamala.Tests` runs unit tests always and engine tests when `FILES_IMGCORE`, `FILES_PYTHON`,
 `FILES_DOCENGINE`, `FILES_MODEL` and `FILES_SOFFICE` point at the engines. The `Files` workflow sets them all with
 `FILES_REQUIRE_ENGINES=1`, so in CI a missing engine is a failure, not a skip. `cargo test` covers imgcore itself.

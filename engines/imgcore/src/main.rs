@@ -1,4 +1,4 @@
-//! imgcore: image processing engine for Commonlyz Files.
+//! imgcore: image processing engine for Kamala.
 //!
 //! Reads one JSON job from stdin, writes the result image to `output` and prints a JSON summary on stdout.
 //! Errors go to stdout as `{"error": "..."}` with exit code 2 (bad input) or 1 (internal).

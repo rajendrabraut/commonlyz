@@ -20,15 +20,15 @@
     <Project Path="src/Modules/Commonlyz.Modules.TeamWiki/Commonlyz.Modules.TeamWiki.csproj" />
     <Project Path="src/Modules/Commonlyz.Modules.TimeTrack/Commonlyz.Modules.TimeTrack.csproj" />
   </Folder>
-  <Folder Name="/src/Files/">
-    <Project Path="src/Commonlyz.Files.Domain/Commonlyz.Files.Domain.csproj" />
-    <Project Path="src/Commonlyz.Files.Application/Commonlyz.Files.Application.csproj" />
-    <Project Path="src/Commonlyz.Files.Infrastructure/Commonlyz.Files.Infrastructure.csproj" />
-    <Project Path="src/Commonlyz.Files.Api/Commonlyz.Files.Api.csproj" />
-    <Project Path="src/Commonlyz.Files.Web/Commonlyz.Files.Web.csproj" />
+  <Folder Name="/src/Kamala/">
+    <Project Path="src/Kamala.Domain/Kamala.Domain.csproj" />
+    <Project Path="src/Kamala.Application/Kamala.Application.csproj" />
+    <Project Path="src/Kamala.Infrastructure/Kamala.Infrastructure.csproj" />
+    <Project Path="src/Kamala.Api/Kamala.Api.csproj" />
+    <Project Path="src/Kamala.Web/Kamala.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Commonlyz.Tests/Commonlyz.Tests.csproj" />
-    <Project Path="tests/Commonlyz.Files.Tests/Commonlyz.Files.Tests.csproj" />
+    <Project Path="tests/Kamala.Tests/Kamala.Tests.csproj" />
   </Folder>
 </Solution>

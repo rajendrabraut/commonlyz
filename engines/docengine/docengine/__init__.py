@@ -1,4 +1,4 @@
-"""Commonlyz Files document engine."""
+"""Kamala document engine."""
 
 
 class BadInput(Exception):

@@ -11,8 +11,8 @@ Spec hash: none (no `.agent/SPEC.md`; requirements below are the owner's chat re
 
 ## Architecture overview (D-001..D-004)
 ```
-Browser ──> Commonlyz.Files.Web (MVC, static UI, strict CSP)
-   └──────> Commonlyz.Files.Api (/v1, rate limit, CORS allowlist)
+Browser ──> Kamala.Web (MVC, static UI, strict CSP)
+   └──────> Kamala.Api (/v1, rate limit, CORS allowlist)
               └─ Application (use cases, ports, conversion routes) ─ Domain (rules, validation)
               └─ Infrastructure ─┬─ imgcore (Rust process)
                                  ├─ docengine (Python process: PDFium, pdfminer, python-docx, ONNX Runtime)

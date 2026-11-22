@@ -40,3 +40,11 @@
 
 ### D-011 Correction to D-008
 - The final palette test uses flat colour regions with xorshift noise (photo-like), plus a separate gradient test asserting smart PNG never grows a file (D-010).
+
+### D-012 Rename Commonlyz Files to Kamala
+- Source: owner chat 2026-11-22 ("renamed this to Kamala"; chose brand + code). Projects/namespaces Commonlyz.Files.* -> Kamala.*, workflow files.yml -> kamala.yml, UI brand, work-dir marker .kamala. Other Commonlyz apps unchanged. Config sections (Files:*) and FILES_* env vars kept so deployments don't break.
+- Workflow edited despite 9.2 because the owner asked for this CI and the rename breaks its paths otherwise.
+
+### D-013 Android app: .NET MAUI
+- Source: owner chat 2026-11-22 ("use dotnet maui ... wholly in dotnet technologies"; no Expo). Calls the same /v1 API. Rust/Python engines stay server-side (owner allowed them earlier); flagged for confirmation.
+
