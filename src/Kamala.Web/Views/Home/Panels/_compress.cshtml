@@ -1,0 +1,19 @@
+<fieldset class="choice">
+    <label class="check"><input type="radio" name="compress-mode" data-opt="mode" value="quality" checked /> By quality</label>
+    <label class="check"><input type="radio" name="compress-mode" data-opt="mode" value="size" /> To a target size</label>
+</fieldset>
+<label data-show="mode=quality">Quality <output data-for="quality">75</output>
+    <input type="range" data-opt="quality" min="10" max="100" step="5" value="75" />
+</label>
+<label data-show="mode=size">Target size (KB)
+    <input type="number" data-opt="targetKb" min="5" max="51200" value="200" />
+</label>
+<label>Output format
+    <select data-opt="format">
+        <option value="same" selected>Same as input</option>
+        <option value="jpeg">JPG</option>
+        <option value="png">PNG</option>
+        <option value="webp">WebP (lossless)</option>
+    </select>
+</label>
+<label class="check"><input type="checkbox" data-opt="lossyPng" checked /> Smart PNG compression (256 colours, much smaller)</label>

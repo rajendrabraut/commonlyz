@@ -1,0 +1,48 @@
+@model Tool
+@{
+    ViewData["Title"] = Model.Title;
+}
+
+<section class="tool-page" data-tool="@Model.Slug" data-endpoint="@Model.Endpoint" data-panel="@Model.Panel" data-preset="@Model.Preset">
+    <a class="back" href="/">← All tools</a>
+    <h1>@Model.Title</h1>
+    <p class="lead">@Model.Summary</p>
+
+    <div class="workspace">
+        <div class="files-column">
+            <label class="dropzone" id="dropzone">
+                <input id="file-input" type="file" accept="@Model.Accept" @(Model.Multiple ? "multiple" : "") />
+                <span class="drop-title">@(Model.Multiple ? "Select files" : "Select a file")</span>
+                <span class="drop-hint">or drop @(Model.Multiple ? "them" : "it") here · up to 50 MB each</span>
+            </label>
+            <ul class="file-list" id="file-list"></ul>
+            @if (Model.Panel == "crop")
+            {
+                <div class="cropper" id="cropper" hidden>
+                    <img id="crop-image" alt="Image to crop" />
+                    <div class="crop-box" id="crop-box"><span class="crop-handle" data-handle="se"></span></div>
+                </div>
+            }
+        </div>
+
+        <form class="options" id="options" autocomplete="off">
+            <partial name="@($"Panels/_{Model.Panel}")" />
+            <button type="submit" class="primary" id="run" disabled>@Model.Title</button>
+            <div class="progress" id="progress" hidden><div class="bar"></div><span class="label"></span></div>
+            <p class="error" id="error" role="alert" hidden></p>
+        </form>
+    </div>
+
+    <section class="results" id="results" hidden>
+        <div class="results-head">
+            <h2>Done</h2>
+            <a class="button" id="download-all" hidden>Download all (ZIP)</a>
+        </div>
+        <ul class="result-list" id="result-list"></ul>
+        <p class="muted">Links expire in 30 minutes.</p>
+    </section>
+</section>
+
+@section Scripts {
+    <script src="~/js/tool.js" asp-append-version="true"></script>
+}

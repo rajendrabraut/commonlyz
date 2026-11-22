@@ -1,0 +1,24 @@
+@model IReadOnlyList<Tool>
+
+<section class="hero">
+    <h1>Every file tool you need, in one place</h1>
+    <p>Convert PDF, Word and images, compress and resize photos, crop, change the aspect ratio, enhance or upscale with AI.
+       Fast, private, and free of sign-ups.</p>
+</section>
+
+@foreach (var group in new[] { (ToolGroup.Convert, "convert", "Convert"), (ToolGroup.Image, "image", "Image tools") })
+{
+    <section class="tool-section" id="@group.Item2">
+        <h2>@group.Item3</h2>
+        <div class="tool-grid">
+            @foreach (var tool in Model.Where(t => t.Group == group.Item1))
+            {
+                <a class="tool-card" href="/@tool.Slug" data-endpoint="@tool.Endpoint">
+                    <span class="badge">@tool.Badge</span>
+                    <h3>@tool.Title</h3>
+                    <p>@tool.Summary</p>
+                </a>
+            }
+        </div>
+    </section>
+}

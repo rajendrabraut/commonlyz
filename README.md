@@ -130,3 +130,54 @@ python3 eng/register-module.py Invoices      # project reference + ModuleCatalog
 - Chat's real-time notifier and PixelSqueeze's temporary file cache are in-memory: run a single instance, or add a backplane (Redis / Azure SignalR) before scaling out.
 - Email (SlotBook confirmations with cancel links, ClientCollect reminders) uses a **database outbox**: `INotificationSender` only queues, and a background dispatcher sends over SMTP (MailKit), with exponential backoff up to `MaxAttempts`. A slow or down mail server never fails a booking or page, and nothing is lost on restart. Rows are claimed with a lease (`UPDATE … OUTPUT` with `READPAST`), so several instances can run the dispatcher without double-sending. Admins can see delivery status, errors and retries, and send a test email, at **/email**.
 - Back up the database (Azure SQL point-in-time restore, or `BACKUP DATABASE … TO URL`). ClientCollect uploads (10 MB each) live in it too.
+
+## Kamala (convert, compress and edit, like iLovePDF)
+
+A separate product in this repo: an ASP.NET Core 10 **API** plus an ASP.NET Core **MVC** website, with conversion
+engines in the language that does each job best.
+
+| Tool | Engine |
+|---|---|
+| PDF to JPG/PNG/WebP, images to PDF, PDF to Word, images to Word | Python `docengine`: PDFium (pypdfium2), pdfminer.six, python-docx |
+| Word (DOCX, DOC, ODT, RTF) to PDF / images / DOCX | LibreOffice, headless, throwaway profile per job, macros off |
+| Compress, resize, crop, aspect ratio, rotate, enhance, denoise, sharpen, reduce quality, format conversion | Rust `imgcore` (pure-Rust decoders: memory-safe on untrusted files) |
+| AI upscale 2-4x | Real-ESRGAN general x4v3 (BSD-3) via ONNX Runtime on CPU, SHA-256 pinned |
+
+All libraries are permissively licensed; AGPL tools (PyMuPDF, pdf2docx, Ghostscript) are deliberately not used.
+
+```
+src/Kamala.Domain          file kinds, image operations, conversion requests, validation (no dependencies)
+src/Kamala.Application     use cases, ports (IImageEditor, IPdfRasterizer, IOfficeConverter...), conversion routes
+src/Kamala.Infrastructure  engine adapters, process runner, magic-byte detection, disk job store
+src/Kamala.Api             composition root + thin HTTP endpoints (/v1/...)
+src/Kamala.Web             MVC site; the browser calls the API directly
+engines/imgcore                     Rust image engine          engines/docengine   Python document engine
+```
+Adding a conversion is one new `IConversionRoute` class, registered in `AddFilesApplication`.
+
+### Run locally
+```powershell
+cargo build --release --manifest-path engines/imgcore/Cargo.toml
+python -m venv .venv-docengine; .venv-docengine\Scripts\pip install --require-hashes --no-deps -r engines/docengine/requirements.txt
+# model: see MODEL_URL / MODEL_SHA256 in .github/workflows/files.yml; LibreOffice is optional (Word tools)
+$env:Files__Engines__ImgcorePath = "engines\imgcore\target\release\imgcore.exe"
+$env:Files__Engines__PythonPath = ".venv-docengine\Scripts\python.exe"
+$env:Files__Engines__DocEngineDirectory = "engines\docengine"
+$env:Files__Engines__UpscaleModelPath = "models\realesr-general-x4v3.onnx"
+dotnet run --project src/Kamala.Api    # http://localhost:5280
+dotnet run --project src/Kamala.Web    # http://localhost:5290
+```
+A missing engine only disables its tools (`GET /v1/capabilities` says which work).
+
+### Security
+Uploads are identified by their bytes, never by name or Content-Type; ZIP documents are checked for zip bombs; images
+are limited to 50 megapixels before decoding. Engines run as separate processes with a stripped environment, a timeout
+that kills the whole process tree, and a global concurrency cap. Files live in a private per-job folder, results are
+reachable only through 128-bit random ids, and everything is deleted after 30 minutes. The API rate-limits per IP,
+allows only the configured CORS origins, and sends `nosniff` and a `default-src 'none'` CSP; the website runs under a
+strict CSP with no inline scripts. EXIF/GPS metadata is stripped from edited images.
+
+### Tests
+`dotnet test tests/Kamala.Tests` runs unit tests always and engine tests when `FILES_IMGCORE`, `FILES_PYTHON`,
+`FILES_DOCENGINE`, `FILES_MODEL` and `FILES_SOFFICE` point at the engines. The `Files` workflow sets them all with
+`FILES_REQUIRE_ENGINES=1`, so in CI a missing engine is a failure, not a skip. `cargo test` covers imgcore itself.

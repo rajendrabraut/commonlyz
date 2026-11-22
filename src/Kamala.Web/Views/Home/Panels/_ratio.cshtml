@@ -1,0 +1,18 @@
+<label>Aspect ratio
+    <select data-opt="ratio">
+        <option value="1:1" selected>1:1 square (Instagram post)</option>
+        <option value="4:5">4:5 portrait (Instagram)</option>
+        <option value="16:9">16:9 widescreen (YouTube)</option>
+        <option value="9:16">9:16 story / reel</option>
+        <option value="4:3">4:3</option>
+        <option value="3:2">3:2 photo</option>
+        <option value="2:3">2:3 photo portrait</option>
+        <option value="21:9">21:9 cinema</option>
+    </select>
+</label>
+<fieldset class="choice">
+    <label class="check"><input type="radio" name="ratio-method" data-opt="method" value="crop" checked /> Crop to fit</label>
+    <label class="check"><input type="radio" name="ratio-method" data-opt="method" value="pad" /> Add borders</label>
+</fieldset>
+<label data-show="method=pad">Border colour <input type="color" data-opt="color" value="#ffffff" /></label>
+<partial name="Panels/_format" />

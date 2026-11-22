@@ -7,6 +7,12 @@ obj/
 TestResults/
 appsettings.*.local.json
 
+# Kamala engines
+engines/imgcore/target/
+__pycache__/
+.venv*/
+/models/
+
 # Misc
 .env
 .idea/

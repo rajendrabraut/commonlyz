@@ -1,0 +1,21 @@
+<label>Aspect ratio
+    <select data-opt="lock" id="crop-lock">
+        <option value="free" selected>Free</option>
+        <option value="1:1">1:1 square</option>
+        <option value="4:3">4:3</option>
+        <option value="3:2">3:2</option>
+        <option value="16:9">16:9</option>
+        <option value="4:5">4:5 portrait</option>
+        <option value="9:16">9:16 story</option>
+    </select>
+</label>
+<div class="row">
+    <label>X <input type="number" data-opt="x" id="crop-x" min="0" value="0" /></label>
+    <label>Y <input type="number" data-opt="y" id="crop-y" min="0" value="0" /></label>
+</div>
+<div class="row">
+    <label>Width <input type="number" data-opt="width" id="crop-w" min="1" value="1" /></label>
+    <label>Height <input type="number" data-opt="height" id="crop-h" min="1" value="1" /></label>
+</div>
+<p class="muted">Drag on the image to move the box; drag the corner to resize.</p>
+<partial name="Panels/_format" />

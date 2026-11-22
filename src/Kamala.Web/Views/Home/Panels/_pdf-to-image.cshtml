@@ -1,0 +1,13 @@
+<label>Resolution
+    <select data-opt="dpi">
+        <option value="72">Screen (72 DPI)</option>
+        <option value="150" selected>Standard (150 DPI)</option>
+        <option value="300">Print (300 DPI)</option>
+    </select>
+</label>
+<label>Quality <output data-for="quality">90</output>
+    <input type="range" data-opt="quality" min="10" max="100" step="5" value="90" />
+</label>
+<label>Pages <small>(blank = all, e.g. 1-3,5)</small>
+    <input type="text" data-opt="pages" placeholder="All pages" maxlength="100" pattern="[0-9,\- ]*" />
+</label>

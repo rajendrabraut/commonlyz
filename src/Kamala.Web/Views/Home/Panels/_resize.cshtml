@@ -1,0 +1,20 @@
+<fieldset class="choice">
+    <label class="check"><input type="radio" name="resize-mode" data-opt="mode" value="pixels" checked /> By pixels</label>
+    <label class="check"><input type="radio" name="resize-mode" data-opt="mode" value="percent" /> By percentage</label>
+</fieldset>
+<div class="row" data-show="mode=pixels">
+    <label>Width <input type="number" data-opt="width" min="1" max="20000" placeholder="auto" /></label>
+    <label>Height <input type="number" data-opt="height" min="1" max="20000" placeholder="auto" /></label>
+</div>
+<label data-show="mode=pixels">When both are set
+    <select data-opt="fit">
+        <option value="contain" selected>Fit inside (keep ratio)</option>
+        <option value="cover">Fill and crop (keep ratio)</option>
+        <option value="fill">Stretch to exact size</option>
+    </select>
+</label>
+<label class="check" data-show="mode=pixels"><input type="checkbox" data-opt="allowUpscale" /> Allow making images bigger</label>
+<label data-show="mode=percent">Scale <output data-for="percent">50</output>%
+    <input type="range" data-opt="percent" min="5" max="400" step="5" value="50" />
+</label>
+<partial name="Panels/_format" />
